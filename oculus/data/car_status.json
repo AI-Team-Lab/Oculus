@@ -1,0 +1,24 @@
+{
+  "car_type": {
+    "convertible": 2,
+    "compact_car": 4,
+    "minibus": 12,
+    "station_wagon": 5,
+    "sedan": 6,
+    "moped_car": 3,
+    "sports_car": 9,
+    "suv": 10
+  },
+  "motor_condition": {
+    "used_car": 20,
+    "annual_car": 50,
+    "new_car": 10,
+    "classic_car": 93,
+    "daily_registration": 91,
+    "accident_car": 30,
+    "demonstration_car": 40
+  },
+  "warranty": {
+    "yes": 1
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "locations": {
+    "burgenland": {
+      "id": 1,
+      "areas": {
+        "eisenstadt": 101,
+        "eisenstadt_land": 102,
+        "guessing": 103,
+        "jennersdorf": 104,
+        "mattersburg": 105,
+        "neusiedl_am_see": 106,
+        "oberpullendorf": 107,
+        "oberwart": 108,
+        "rust_city": 109
+      }
+    },
+    "kaernten": {
+      "id": 2,
+      "areas": {
+        "feldkirchen": 201,
+        "hermagor": 202,
+        "klagenfurt": 203,
+        "klagenfurt_land": 204,
+        "sankt_veit_an_der_glan": 205,
+        "spittal_an_der_drau": 206,
+        "villach": 207,
+        "villach_land": 208,
+        "voelkermarkt": 209,
+        "wolfsberg": 210
+      }
+    },
+    "niederoesterreich": {
+      "id": 3,
+      "areas": {
+        "amstetten": 301,
+        "baden": 302,
+        "bruck_an_der_leitha": 303,
+        "gaenserndorf": 304,
+        "gmuend": 305,
+        "hollabrunn": 306,
+        "horn": 307,
+        "korneuburg": 308,
+        "krems_an_der_donau": 309,
+        "krems_land": 310,
+        "lilienfeld": 311,
+        "melk": 312,
+        "mistelbach": 313,
+        "moedling": 314,
+        "neunkirchen": 315,
+        "sankt_poelten": 316,
+        "sankt_poelten_land": 317,
+        "scheibbs": 318,
+        "tulln": 319,
+        "waidhofen_an_der_thaya": 320,
+        "waidhofen_an_der_ybbs": 321,
+        "wiener_neustadt": 322,
+        "wiener_neustadt_land": 323,
+        "zwettl": 325
+      }
+    },
+    "oberoesterreich": {
+      "id": 4,
+      "areas": {
+        "braunau_am_inn": 401,
+        "eferding": 402,
+        "freistadt": 403,
+        "gmunden": 404,
+        "grieskirchen": 405,
+        "kirchdorf_an_der_krems": 406,
+        "linz": 407,
+        "linz_land": 408,
+        "perg": 409,
+        "ried_im_innkreis": 410,
+        "rohrbach": 411,
+        "schaerding": 412,
+        "steyr": 413,
+        "steyr_land": 414,
+        "urfahr_umgebung": 415,
+        "voecklabruck": 416,
+        "wels": 417,
+        "wels_land": 418
+      }
+    },
+    "salzburg": {
+      "id": 5,
+      "areas": {
+        "hallein": 501,
+        "salzburg_city": 502,
+        "salzburg_surroundings": 503,
+        "sankt_johann_im_pongau": 504,
+        "tamsweg": 505,
+        "zell_am_see": 506
+      }
+    },
+    "steiermark": {
+      "id": 6,
+      "areas": {
+        "bruck_muerzzuschlag": 601,
+        "deutschlandsberg": 603,
+        "graz": 606,
+        "graz_surroundings": 610,
+        "hartberg_fuerstenfeld": 611,
+        "leibnitz": 612,
+        "leoben": 614,
+        "liezen": 616,
+        "murau": 617,
+        "murtal": 620,
+        "suedoststeiermark": 621,
+        "voitsberg": 622,
+        "weiz": 623
+      }
+    },
+    "tirol": {
+      "id": 7,
+      "areas": {
+        "imst": 701,
+        "innsbruck": 702,
+        "innsbruck_land": 703,
+        "kitzbuehel": 704,
+        "kufstein": 705,
+        "landeck": 706,
+        "lienz": 707,
+        "reutte": 708,
+        "schwaz": 709
+      }
+    },
+    "vorarlberg": {
+      "id": 8,
+      "areas": {
+        "bludenz": 801,
+        "bregenz": 802,
+        "dornbirn": 803,
+        "feldkirch": 804
+      }
+    },
+    "vienna": {
+      "id": 900,
+      "areas": {
+        "district_01": 117223,
+        "district_02": 117224,
+        "district_03": 117225,
+        "district_04": 117226,
+        "district_05": 117227,
+        "district_06": 117228,
+        "district_07": 117229,
+        "district_08": 117230,
+        "district_09": 117231,
+        "district_10": 117232,
+        "district_11": 117233,
+        "district_12": 117234,
+        "district_13": 117235,
+        "district_14": 117236,
+        "district_15": 117237,
+        "district_16": 117238,
+        "district_17": 117239,
+        "district_18": 117240,
+        "district_19": 117241,
+        "district_20": 117242,
+        "district_21": 117243,
+        "district_22": 117244,
+        "district_23": 117245
+      }
+    },
+    "other_countries": {
+      "id": 22000,
+      "areas": {
+        "germany": 20784,
+        "france": -137,
+        "italy": -166,
+        "croatia": -127,
+        "netherlands": -128,
+        "poland": -57,
+        "portugal": -44,
+        "switzerland": -132,
+        "serbia": -13,
+        "slovakia": -168,
+        "slovenia": -169,
+        "spain": -134,
+        "czech_republic": -136,
+        "hungary": -139
+      }
+    }
+  },
+  "dealer": {
+    "commercial": 0,
+    "private": 1
+  },
+  "periode": {
+    "last_48_hours": 2
+  }
+}
