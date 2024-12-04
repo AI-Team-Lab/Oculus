@@ -4,6 +4,9 @@ import requests
 import json
 import random
 import time
+import re
+from datetime import datetime, timezone
+from rich import print
 
 # List of user agents
 user_agents = [
@@ -65,6 +68,7 @@ class WillHaben:
         Returns:
             dict: The loaded JSON data or an empty dictionary if loading fails.
         """
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -86,6 +90,7 @@ class WillHaben:
         Returns:
             dict: The JSON response from the API or None if an error occurs.
         """
+
         try:
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
@@ -145,7 +150,7 @@ class WillHaben:
 
                 Returns:
                     dict: The search results or None if no cars are found.
-                """
+        """
         car_model_make_id = self.car_data.get(car_model_make.lower(), {}).get("id") if car_model_make else None
         car_model_model_id = self.car_data.get(car_model_make.lower(), {}).get("models", {}).get(
             car_model_model) if car_model_make and car_model_model else None
@@ -250,60 +255,186 @@ class WillHaben:
 
     @staticmethod
     def extract_car_info(car):
-        attributes = {attr["name"]: attr["values"][0] for attr in car.get("attributes", {}).get("attribute", [])}
-        return {
-            "id": car.get("id"),
-            "description": car.get("description", "N/A"),
-            "mileage": attributes.get("MILEAGE", "N/A"),
-            "make": attributes.get("CAR_MODEL/MAKE", "N/A"),
-            "model_specification": attributes.get("CAR_MODEL/MODEL_SPECIFICATION", "N/A"),
-            "country": attributes.get("COUNTRY", "N/A"),
-            "price": attributes.get("PRICE/AMOUNT", "N/A"),
-            "location": attributes.get("LOCATION", "N/A"),
+        """
+        Extracts detailed information about a car from the provided JSON structure.
+
+        Args:
+            car (dict): A dictionary containing detailed information about a car.
+
+        Returns:
+            dict: A dictionary with the extracted and formatted car information.
+        """
+
+        # Extract attributes and handle values that may be lists
+        attributes = {
+            attr["name"]: attr["values"] if len(attr["values"]) > 1 else attr["values"][0]
+            for attr in car.get("attributes", {}).get("attribute", [])
         }
 
-    def process_cars(self, car_model_make):
-        # Verzeichnisname definieren
+        # Extract the first main image URL from the advert image list
+        advert_image_list = car.get("advertImageList", {}).get("advertImage", [])
+        main_image_url = advert_image_list[0].get("mainImageUrl") if advert_image_list else "N/A"
+
+        # Clean up the raw description by removing unnecessary whitespaces and non-breaking spaces
+        raw_description = attributes.get("BODY_DYN", "N/A")
+        description = re.sub(r"\s+", " ", raw_description.replace("\u00a0", " ").strip())
+
+        # Extract and process the 'equipment' field
+        raw_equipment = attributes.get("EQUIPMENT", "N/A")
+        if raw_equipment != "N/A":
+            # Split the semicolon-separated string into a list
+            equipment = raw_equipment.split(";")
+        else:
+            equipment = "N/A"
+
+        # Extract and process the 'all_image_urls' field
+        raw_all_image_urls = attributes.get("ALL_IMAGE_URLS", "N/A")
+        if raw_all_image_urls != "N/A":
+            all_image_urls = raw_all_image_urls.split(";")
+        else:
+            all_image_urls = "N/A"
+
+        # Return the extracted information as a dictionary
+        return {
+            "id": car.get("id"),
+            "advertStatus": car.get("advertStatus").get("id", "N/A"),
+            "make": attributes.get("CAR_MODEL/MAKE", "N/A"),
+            "model": attributes.get("CAR_MODEL/MODEL", "N/A"),
+            "specification": attributes.get("CAR_MODEL/MODEL_SPECIFICATION"),
+            "description_head": car.get("description", "N/A"),
+            "description": description,
+            "year_model": attributes.get("YEAR_MODEL", "N/A"),
+            "transmission": attributes.get("TRANSMISSION", "N/A"),
+            "transmission_resolved": attributes.get("TRANSMISSION_RESOLVED", "N/A"),
+            "mileage": attributes.get("MILEAGE", "N/A"),
+            "noofseats": attributes.get("NOOFSEATS", "N/A"),
+            "engine_effect": attributes.get("ENGINE/EFFECT", "N/A"),
+            "engine_fuel": attributes.get("ENGINE/FUEL", "N/A"),
+            "engine_fuel_resolved": attributes.get("ENGINE/FUEL_RESOLVED", "N/A"),
+            "heading": attributes.get("HEADING", "N/A"),
+            "car_type": attributes.get("CAR_TYPE", "N/A"),
+            "no_of_owners": attributes.get("NO_OF_OWNERS", "N/A"),
+            "color": attributes.get("EXTERIORCOLOURMAIN", "N/A"),
+            "condition": attributes.get("CONDITION", "N/A"),
+            "condition_resolved": attributes.get("CONDITION_RESOLVED", "N/A"),
+            "equipment": equipment,
+            "equipment_resolved": attributes.get("EQUIPMENT_RESOLVED", "N/A"),
+            "address": attributes.get("ADDRESS", "N/A"),
+            "location": attributes.get("LOCATION", "N/A"),
+            "postcode": attributes.get("POSTCODE", "N/A"),
+            "district": attributes.get("DISTRICT", "N/A"),
+            "state": attributes.get("STATE", "N/A"),
+            "country": attributes.get("COUNTRY", "N/A"),
+            "coordinates": attributes.get("COORDINATES", "N/A"),
+            "price": attributes.get("PRICE/AMOUNT", "N/A"),
+            "price_for_display": attributes.get("PRICE_FOR_DISPLAY", "N/A"),
+            "warranty": attributes.get("WARRANTY"),
+            "warranty_resolved": attributes.get("WARRANTY_RESOLVED", "N/A"),
+            "published": attributes.get("PUBLISHED", "N/A"),
+            "published_string": attributes.get("PUBLISHED_String", "N/A"),
+            "last_updated": attributes.get("LAST_UPDATED", "N/A"),
+            "isprivate": attributes.get("ISPRIVATE", "N/A"),
+            "seo_url": attributes.get("SEO_URL", "N/A"),
+            "main_image_url": main_image_url,
+            "all_image_urls": all_image_urls
+        }
+
+    @staticmethod
+    def save_data(data, save_type="csv", filename=None):
+        """
+        Saves data either to a CSV file or a database.
+
+        Args:
+            data (list of dict): The data to save.
+            save_type (str): The type of storage ("csv" or "db").
+            filename (str): The filename for the CSV (if save_type is "csv").
+        """
+        if save_type == "csv":
+            if not filename:
+                raise ValueError("Filename must be provided for CSV storage.")
+            try:
+                with open(filename, mode="a", newline="", encoding="utf-8") as file:
+                    writer = csv.writer(file)
+                    for row in data:
+                        writer.writerow(row.values())
+                print(f"Data successfully saved to CSV: {filename}")
+            except PermissionError as f:
+                print(f"{f}: Unable to write to '{filename}'")
+        elif save_type == "db":
+            pass
+            print(f"Data successfully saved to database")
+        else:
+            raise ValueError("Invalid save_type. Use 'csv' or 'db'.")
+
+    def process_cars(self, car_model_make: str = None, save_type="csv"):
+        """
+        Processes car listings by fetching data from the API, extracting relevant information,
+        and saving it either to a CSV file or a database.
+
+        Args:
+            car_model_make (str): The car make (e.g., "BMW", "Audi"). If None, fetches data for all car makes.
+            save_type (str): The type of storage ("csv" or "db").
+        """
+        # Define the directory for CSV exports
         directory = "csv_exports"
-        os.makedirs(directory, exist_ok=True)  # Verzeichnis erstellen, falls nicht vorhanden
+        os.makedirs(directory, exist_ok=True)  # Create directory if it doesn't exist
 
-        # CSV-Dateiname im Verzeichnis
-        filename = os.path.join(directory, f"car_make_{car_model_make}.csv")
+        # Define the CSV filename
+        filename = os.path.join(directory, f"car_make_{car_model_make or 'all'}.csv")
 
-        # CSV-Datei initialisieren und Header schreiben
-        with open(filename, mode='w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerow(["Title", "Mileage", "Make", "Country", "Model Specification", "Price"])
+        # Initialize the CSV file and dynamically write the header (if save_type is CSV)
+        if save_type == "csv":
+            try:
+                # Fetch a sample car to extract headers dynamically
+                sample_result = self.search_car(car_model_make=car_model_make, page=1, rows=1)
+                if sample_result and "advertSummaryList" in sample_result and "advertSummary" in sample_result[
+                    "advertSummaryList"]:
+                    sample_car = sample_result["advertSummaryList"]["advertSummary"][0]
+                    sample_headers = self.extract_car_info(sample_car).keys()
+                else:
+                    print(f"No data available for {car_model_make}.")
+                    return {"status": "error", "message": f"No data found for {car_model_make}."}
+
+                with open(filename, mode="w", newline="", encoding="utf-8") as file:
+                    writer = csv.writer(file)
+                    writer.writerow(sample_headers)  # Dynamically write the headers
+
+            except PermissionError:
+                print(f"Error: Unable to access '{filename}'. Please close the file if it's open in another program.")
+                return {"status": "error", "message": f"File '{filename}' is locked or in use."}
 
         page = 1
         while True:
-            # Verzögerung vor jeder Anfrage, um die API zu entlasten
-            time.sleep(5)
+            # Add a delay to avoid overloading the API
+            time.sleep(6)
 
-            # Anfrage an die API
+            # Fetch data from the API
             result = self.search_car(car_model_make=car_model_make, page=page, rows=200)
             if not result or result.get("rowsReturned") == 0:
                 print(f"No more vehicles found for CAR_MODEL/MAKE {car_model_make}.")
                 break
 
+            # Process the cars
             rows_returned = result.get("rowsReturned", 0)
             print(f"Processing {rows_returned} vehicles on page {page}...")
 
-            # Verarbeiten der Fahrzeuge und in CSV schreiben
-            with open(filename, mode='a', newline='', encoding='utf-8') as file:
-                writer = csv.writer(file)
-                for car in result.get("advertSummaryList", {}).get("advertSummary", []):
-                    car_info = self.extract_car_info(car)
-                    print(car_info)
+            car_data = []
+            for car in result.get("advertSummaryList", {}).get("advertSummary", []):
+                car_info = self.extract_car_info(car)
+                print(car_info)
+                car_data.append(car_info)
 
-                    # Informationen in CSV-Format umwandeln
-                    writer.writerow([
-                        car_info.get("description", "N/A"),
-                        car_info.get("mileage", "N/A"),
-                        car_info.get("make", "N/A"),
-                        car_info.get("country", "N/A"),
-                        car_info.get("model_specification", "N/A"),
-                        car_info.get("price", "N/A")
-                    ])
+            # Save the processed data
+            try:
+                self.save_data(
+                    data=car_data,
+                    save_type=save_type,
+                    filename=filename if save_type == "csv" else None,
+                )
+            except Exception as e:
+                print(f"Error saving data: {e}")
+                return {"status": "error", "message": f"Failed to save data: {e}"}
 
             page += 1
+
+        return {"status": "success", "message": "Processing completed."}

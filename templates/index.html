@@ -1,34 +1,48 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Oculus</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Search</title>
 </head>
 <body>
-<h1>Autosuche</h1>
-<form method="GET" action="/">
-    <label for="keyword">Suchbegriff:</label>
-    <input type="text" id="keyword" name="keyword" required>
-    <button type="submit">Suchen</button>
-</form>
+    <h1>Car Search Results</h1>
+    <form method="get" action="/">
+        <input type="text" name="keyword" placeholder="Enter a keyword" required>
+        <button type="submit">Search</button>
+    </form>
 
-{% if results %}
-<h2>Suchergebnisse</h2>
-<ul>
-    {% for car in results %}
-    <li>
-        <strong>{{ car.title }}</strong><br>
-        Preis: {{ car.price }}<br>
-        Standort: {{ car.location }}<br>
-        {% if car.image %}
-        <img src="https://cache.willhaben.at/mmo/{{ car.image }}" alt="{{ car.title }}" style="max-width: 200px;">
-        {% endif %}
-        <a href="{{ car.link }}" target="_blank">Details ansehen</a>
-    </li>
-    {% endfor %}
-</ul>
-{% else %}
-<p>Keine Ergebnisse gefunden oder es gab einen Fehler.</p>
-{% endif %}
+    {% if results %}
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Published</th>
+                <th>Description</th>
+                <th>Mileage</th>
+                <th>Price</th>
+                <th>Location</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for car in results %}
+            <tr>
+                <td>{{ car.id }}</td>
+                <td>{{ car.make }}</td>
+                <td>{{ car.model }}</td>
+                <td>{{ car.published }}</td>
+                <td>{{ car.description }}</td>
+                <td>{{ car.mileage }}</td>
+                <td>{{ car.price }}</td>
+                <td>{{ car.location }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No results found.</p>
+    {% endif %}
 </body>
 </html>
