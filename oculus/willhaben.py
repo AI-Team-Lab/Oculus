@@ -277,7 +277,7 @@ class WillHaben:
 
         # Clean up the raw description by removing unnecessary whitespaces and non-breaking spaces
         raw_description = attributes.get("BODY_DYN", "N/A")
-        description = re.sub(r"\s+", " ", raw_description.replace("\u00a0", " ").strip())
+        description = re.sub(r"\s+", " ", raw_description.replace("\u00a0", " ").replace("\ufeff", " ").strip())
 
         # Extract and process the 'equipment' field
         raw_equipment = attributes.get("EQUIPMENT", "N/A")
@@ -340,7 +340,7 @@ class WillHaben:
         }
 
     @staticmethod
-    def save_data(data, save_type="csv", filename=None):
+    def save_data(data, save_type="csv", filename=None, db_connection=None, table_name=None):
         """
         Saves data either to a CSV file or a database.
 
@@ -348,6 +348,8 @@ class WillHaben:
             data (list of dict): The data to save.
             save_type (str): The type of storage ("csv" or "db").
             filename (str): The filename for the CSV (if save_type is "csv").
+            db_connection (pymssql.Connection): The database connection object (if save_type is "db").
+            table_name (str): The name of the database table (if save_type is "db").
         """
         if save_type == "csv":
             if not filename:
@@ -361,12 +363,24 @@ class WillHaben:
             except PermissionError as f:
                 print(f"{f}: Unable to write to '{filename}'")
         elif save_type == "db":
-            pass
-            print(f"Data successfully saved to database")
+            if not db_connection or not table_name:
+                raise ValueError("Database connection and table name must be provided for database storage.")
+            try:
+                cursor = db_connection.cursor()
+                for row in data:
+                    # Dynamically construct the SQL INSERT statement
+                    columns = ", ".join(row.keys())
+                    placeholders = ", ".join(["%s"] * len(row))
+                    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+                    cursor.execute(sql, tuple(row.values()))
+                db_connection.commit()
+                print(f"✅ Data successfully saved to database table '{table_name}'")
+            except Exception as e:
+                print(f"❌ Error saving data to database: {e}")
         else:
             raise ValueError("Invalid save_type. Use 'csv' or 'db'.")
 
-    def process_cars(self, car_model_make: str = None, save_type="csv"):
+    def process_cars(self, car_model_make: str = None, save_type="csv", db_connection=None, table_name=None):
         """
         Processes car listings by fetching data from the API, extracting relevant information,
         and saving it either to a CSV file or a database.
@@ -374,6 +388,8 @@ class WillHaben:
         Args:
             car_model_make (str): The car make (e.g., "BMW", "Audi"). If None, fetches data for all car makes.
             save_type (str): The type of storage ("csv" or "db").
+            db_connection (pymssql.Connection): The database connection object (if save_type is "db").
+            table_name (str): The database table name (if save_type is "db").
         """
         # Define the directory for CSV exports
         directory = "csv_exports"
@@ -421,7 +437,6 @@ class WillHaben:
             car_data = []
             for car in result.get("advertSummaryList", {}).get("advertSummary", []):
                 car_info = self.extract_car_info(car)
-                print(car_info)
                 car_data.append(car_info)
 
             # Save the processed data
@@ -430,6 +445,8 @@ class WillHaben:
                     data=car_data,
                     save_type=save_type,
                     filename=filename if save_type == "csv" else None,
+                    db_connection=db_connection if save_type == "db" else None,
+                    table_name=table_name if save_type == "db" else None,
                 )
             except Exception as e:
                 print(f"Error saving data: {e}")
