@@ -1,4 +1,4 @@
-from oculus.willhaben import WillHaben
-from oculus.database import Database
+from oculus.willhaben import Willhaben
+from oculus.database import Database, DatabaseError
 
-__all__ = ["WillHaben", "Database"]
+__all__ = ["Willhaben", "Database", "DatabaseError"]

@@ -1,18 +1,28 @@
-from flask import Flask, render_template, request, jsonify
-from oculus import WillHaben, Database
+from flask import Flask, render_template, request, jsonify, g
+from oculus import Willhaben, Database
 from rich import print
 
 # Initialize Flask and other components
 app = Flask(__name__)
-willhaben = WillHaben()
+willhaben = Willhaben()
 
 # Initialize and connect to the database
-db = Database()
-try:
-    db.connect()
-except Exception as e:
-    print(f"[red]Error connecting to the database: {e}[/red]")
-    db = None
+db_init = Database()
+db_init.connect()
+
+
+def get_db():
+    if 'db' not in g:
+        g.db = Database()
+        g.db.connect()
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(error):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
 
 
 @app.route("/", methods=["GET"])
@@ -39,12 +49,13 @@ def index():
     return render_template("index.html", results=results)
 
 
-@app.route("/fetch_cars", methods=["POST"])
 @app.route("/fetch_cars", methods=["GET", "POST"])
 def fetch_cars():
     """
     Fetches cars based on the provided car model make and saves the data to the database or CSV.
     """
+
+    db = get_db()
     valid_car_makes = willhaben.car_data.keys()
 
     try:
@@ -66,15 +77,15 @@ def fetch_cars():
             result = willhaben.process_cars(
                 car_model_make=car_model_make,
                 save_type="db",
-                db_connection=db.conn,
-                table_name="willhaben"
+                db_instance=db,  # Übergib die gesamte Datenbank-Instanz
+                table_name="dbo.willhaben"
             )
         else:
             print("Processing all cars.")
             result = willhaben.process_cars(
                 save_type="db",
-                db_connection=db.conn,
-                table_name="willhaben"
+                db_instance=db,  # Übergib die gesamte Datenbank-Instanz
+                table_name="dbo.willhaben"
             )
 
         return jsonify(result)
@@ -82,14 +93,6 @@ def fetch_cars():
         print(f"[red]Error processing cars: {e}[/red]")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.teardown_appcontext
-def close_db(exception):
-    """
-    Closes the database connection when the app context ends.
-    """
-    if db:
-        db.close()
 
 
 if __name__ == "__main__":

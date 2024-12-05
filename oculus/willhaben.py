@@ -5,8 +5,9 @@ import json
 import random
 import time
 import re
-from datetime import datetime, timezone
 from rich import print
+
+from oculus.database import DatabaseError
 
 # List of user agents
 user_agents = [
@@ -16,7 +17,7 @@ user_agents = [
 ]
 
 
-class WillHaben:
+class Willhaben:
     """
     This class provides an interface for interacting with the Willhaben car search API.
     It allows fetching car-related data and performing advanced search queries based on various filters.
@@ -297,50 +298,50 @@ class WillHaben:
         # Return the extracted information as a dictionary
         return {
             "id": car.get("id"),
-            "advertStatus": car.get("advertStatus").get("id", "N/A"),
-            "make": attributes.get("CAR_MODEL/MAKE", "N/A"),
-            "model": attributes.get("CAR_MODEL/MODEL", "N/A"),
+            "advertStatus": car.get("advertStatus").get("id"),
+            "make": attributes.get("CAR_MODEL/MAKE"),
+            "model": attributes.get("CAR_MODEL/MODEL"),
             "specification": attributes.get("CAR_MODEL/MODEL_SPECIFICATION"),
-            "description_head": car.get("description", "N/A"),
+            "description_head": car.get("description"),
             "description": description,
-            "year_model": attributes.get("YEAR_MODEL", "N/A"),
-            "transmission": attributes.get("TRANSMISSION", "N/A"),
-            "transmission_resolved": attributes.get("TRANSMISSION_RESOLVED", "N/A"),
-            "mileage": attributes.get("MILEAGE", "N/A"),
-            "noofseats": attributes.get("NOOFSEATS", "N/A"),
-            "engine_effect": attributes.get("ENGINE/EFFECT", "N/A"),
-            "engine_fuel": attributes.get("ENGINE/FUEL", "N/A"),
-            "engine_fuel_resolved": attributes.get("ENGINE/FUEL_RESOLVED", "N/A"),
-            "heading": attributes.get("HEADING", "N/A"),
-            "car_type": attributes.get("CAR_TYPE", "N/A"),
-            "no_of_owners": attributes.get("NO_OF_OWNERS", "N/A"),
-            "color": attributes.get("EXTERIORCOLOURMAIN", "N/A"),
-            "condition": attributes.get("CONDITION", "N/A"),
-            "condition_resolved": attributes.get("CONDITION_RESOLVED", "N/A"),
+            "year_model": attributes.get("YEAR_MODEL"),
+            "transmission": attributes.get("TRANSMISSION"),
+            "transmission_resolved": attributes.get("TRANSMISSION_RESOLVED"),
+            "mileage": attributes.get("MILEAGE"),
+            "noofseats": attributes.get("NOOFSEATS"),
+            "engine_effect": attributes.get("ENGINE/EFFECT"),
+            "engine_fuel": attributes.get("ENGINE/FUEL"),
+            "engine_fuel_resolved": attributes.get("ENGINE/FUEL_RESOLVED"),
+            "heading": attributes.get("HEADING"),
+            "car_type": attributes.get("CAR_TYPE"),
+            "no_of_owners": attributes.get("NO_OF_OWNERS"),
+            "color": attributes.get("EXTERIORCOLOURMAIN"),
+            "condition": attributes.get("CONDITION"),
+            "condition_resolved": attributes.get("CONDITION_RESOLVED"),
             "equipment": equipment,
-            "equipment_resolved": attributes.get("EQUIPMENT_RESOLVED", "N/A"),
-            "address": attributes.get("ADDRESS", "N/A"),
-            "location": attributes.get("LOCATION", "N/A"),
-            "postcode": attributes.get("POSTCODE", "N/A"),
-            "district": attributes.get("DISTRICT", "N/A"),
-            "state": attributes.get("STATE", "N/A"),
-            "country": attributes.get("COUNTRY", "N/A"),
-            "coordinates": attributes.get("COORDINATES", "N/A"),
-            "price": attributes.get("PRICE/AMOUNT", "N/A"),
-            "price_for_display": attributes.get("PRICE_FOR_DISPLAY", "N/A"),
+            "equipment_resolved": attributes.get("EQUIPMENT_RESOLVED"),
+            "address": attributes.get("ADDRESS"),
+            "location": attributes.get("LOCATION"),
+            "postcode": attributes.get("POSTCODE"),
+            "district": attributes.get("DISTRICT"),
+            "state": attributes.get("STATE"),
+            "country": attributes.get("COUNTRY"),
+            "coordinates": attributes.get("COORDINATES"),
+            "price": attributes.get("PRICE/AMOUNT"),
+            "price_for_display": attributes.get("PRICE_FOR_DISPLAY"),
             "warranty": attributes.get("WARRANTY"),
-            "warranty_resolved": attributes.get("WARRANTY_RESOLVED", "N/A"),
-            "published": attributes.get("PUBLISHED", "N/A"),
-            "published_string": attributes.get("PUBLISHED_String", "N/A"),
-            "last_updated": attributes.get("LAST_UPDATED", "N/A"),
-            "isprivate": attributes.get("ISPRIVATE", "N/A"),
-            "seo_url": attributes.get("SEO_URL", "N/A"),
+            "warranty_resolved": attributes.get("WARRANTY_RESOLVED"),
+            "published": attributes.get("PUBLISHED"),
+            "published_string": attributes.get("PUBLISHED_String"),
+            "last_updated": attributes.get("LAST_UPDATED"),
+            "isprivate": attributes.get("ISPRIVATE"),
+            "seo_url": attributes.get("SEO_URL"),
             "main_image_url": main_image_url,
             "all_image_urls": all_image_urls
         }
 
     @staticmethod
-    def save_data(data, save_type="csv", filename=None, db_connection=None, table_name=None):
+    def save_data(data, save_type="csv", filename=None, db_instance=None, table_name=None):
         """
         Saves data either to a CSV file or a database.
 
@@ -348,48 +349,55 @@ class WillHaben:
             data (list of dict): The data to save.
             save_type (str): The type of storage ("csv" or "db").
             filename (str): The filename for the CSV (if save_type is "csv").
-            db_connection (pymssql.Connection): The database connection object (if save_type is "db").
+            db_instance (Database): The database instance object (if save_type is "db").
             table_name (str): The name of the database table (if save_type is "db").
+        Raises:
+            ValueError: If required arguments are missing or invalid.
         """
         if save_type == "csv":
+            # CSV Speicher-Logik
             if not filename:
                 raise ValueError("Filename must be provided for CSV storage.")
             try:
                 with open(filename, mode="a", newline="", encoding="utf-8") as file:
                     writer = csv.writer(file)
+                    # Schreibe die Zeilen aus den Daten
                     for row in data:
                         writer.writerow(row.values())
-                print(f"Data successfully saved to CSV: {filename}")
-            except PermissionError as f:
-                print(f"{f}: Unable to write to '{filename}'")
-        elif save_type == "db":
-            if not db_connection or not table_name:
-                raise ValueError("Database connection and table name must be provided for database storage.")
-            try:
-                cursor = db_connection.cursor()
-                for row in data:
-                    # Dynamically construct the SQL INSERT statement
-                    columns = ", ".join(row.keys())
-                    placeholders = ", ".join(["%s"] * len(row))
-                    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-                    cursor.execute(sql, tuple(row.values()))
-                db_connection.commit()
-                print(f"✅ Data successfully saved to database table '{table_name}'")
+                print(f"✅ Data successfully saved to CSV: {filename}")
+            except PermissionError as e:
+                print(f"❌ Permission error: Unable to write to '{filename}'. Details: {e}")
             except Exception as e:
-                print(f"❌ Error saving data to database: {e}")
+                print(f"❌ Unexpected error while saving to CSV: {e}")
+
+        elif save_type == "db":
+            # Datenbank Speicher-Logik
+            if not db_instance or not table_name:
+                raise ValueError("Database instance and table name must be provided for database storage.")
+            try:
+                # Verwende die zentrale `insert_data`-Methode aus der `Database`-Klasse
+                db_instance.insert_data(table_name, data)
+                print(f"✅ Data successfully saved to database table '{table_name}'")
+            except DatabaseError as e:
+                print(f"❌ Database error while saving data: {e}")
+            except Exception as e:
+                print(f"❌ Unexpected error while saving to database: {e}")
         else:
+            # Fehlerhafte `save_type`
             raise ValueError("Invalid save_type. Use 'csv' or 'db'.")
 
-    def process_cars(self, car_model_make: str = None, save_type="csv", db_connection=None, table_name=None):
+    def process_cars(self, car_model_make=None, save_type="csv", db_instance=None, table_name=None):
         """
-        Processes car listings by fetching data from the API, extracting relevant information,
-        and saving it either to a CSV file or a database.
+        Process cars and save them to the desired output (CSV or database).
 
         Args:
-            car_model_make (str): The car make (e.g., "BMW", "Audi"). If None, fetches data for all car makes.
-            save_type (str): The type of storage ("csv" or "db").
-            db_connection (pymssql.Connection): The database connection object (if save_type is "db").
-            table_name (str): The database table name (if save_type is "db").
+            car_model_make (str): The car make/model to process.
+            save_type (str): The type of output ("csv" or "db").
+            db_instance (Database): Database instance for saving data.
+            table_name (str): Name of the database table.
+
+        Returns:
+            dict: Summary of the processing.
         """
         # Define the directory for CSV exports
         directory = "csv_exports"
@@ -445,7 +453,7 @@ class WillHaben:
                     data=car_data,
                     save_type=save_type,
                     filename=filename if save_type == "csv" else None,
-                    db_connection=db_connection if save_type == "db" else None,
+                    db_instance=db_instance if save_type == "db" else None,  # Pass db_instance here
                     table_name=table_name if save_type == "db" else None,
                 )
             except Exception as e:
