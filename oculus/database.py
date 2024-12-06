@@ -12,22 +12,25 @@ class DatabaseError(Exception):
 
 class Database:
     def __init__(self):
-        self.host = os.getenv('DB_HOST')
-        self.port = os.getenv('DB_PORT')
-        self.user = os.getenv('DB_USER')
-        self.password = os.getenv('DB_PASSWORD')
-        self.database = os.getenv('DB_DATABASE')
+        self.host = os.getenv("DB_HOST")
+        self.port = os.getenv("DB_PORT")
+        self.user = os.getenv("DB_USER")
+        self.password = os.getenv("DB_PASSWORD")
+        self.database = os.getenv("DB_DATABASE")
         self.conn = None
         self.cursor = None
 
     def connect(self):
+        if self.conn:
+            print("✅[yellow] Database connection already established.[/yellow]")
+            return
         try:
             self.conn = pymssql.connect(
                 server=self.host,
                 user=self.user,
                 password=self.password,
                 database=self.database,
-                charset='utf8'
+                charset="utf8",
             )
             self.cursor = self.conn.cursor()
             print("✅[green] Database connection established.[/green]")
@@ -36,15 +39,33 @@ class Database:
 
     def close(self):
         if self.cursor:
-            self.cursor.close()
+            try:
+                self.cursor.close()
+            except Exception:
+                pass
         if self.conn:
-            self.conn.close()
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+        self.conn = None
+        self.cursor = None
         print("✅[green] Database connection closed.[/green]")
+
+    def ensure_connection(self):
+        """
+        Ensures that the database connection is active.
+        Reconnects if necessary.
+        """
+        if not self.conn:
+            print("[yellow]Reconnecting to the database...[/yellow]")
+            self.connect()
 
     def execute_query(self, query, params=None):
         """
         Executes a query and fetches all results.
         """
+        self.ensure_connection()
         try:
             self.cursor.execute(query, params or [])
             return self.cursor.fetchall()
@@ -59,25 +80,17 @@ class Database:
             table_name (str): The name of the table to insert into.
             data (list): A list of dictionaries, each representing a row of data.
         """
+        self.ensure_connection()
         try:
             for row in data:
                 try:
                     # Replace 'N/A', empty strings, and None with appropriate default values
                     for key, value in row.items():
-                        if value == 'N/A' or value == '':
-                            if key in ('equipment', 'equipment_resolved', 'all_image_urls'):
-                                row[key] = []
-                            else:
-                                row[key] = None
-                        elif value is None:
-                            if key in ('equipment', 'equipment_resolved', 'all_image_urls'):
-                                row[key] = []
-                            else:
-                                row[key] = None
+                        if value in ("N/A", "", None):
+                            row[key] = [] if key in ("equipment", "equipment_resolved", "all_image_urls") else None
 
                     # Extract non-equipment columns for main table
-                    main_columns = [col for col in row.keys()
-                                    if col not in ('equipment', 'equipment_resolved', 'all_image_urls')]
+                    main_columns = [col for col in row.keys() if col not in ("equipment", "equipment_resolved", "all_image_urls")]
                     main_placeholders = ["%s" for _ in main_columns]
 
                     # Extract data for main table
@@ -88,17 +101,11 @@ class Database:
                     self.cursor.execute(main_sql, main_data)
 
                     # Use row['id'] as the willhaben_id
-                    willhaben_id = row['id']
+                    willhaben_id = row["id"]
 
                     # Extract equipment and equipment_resolved lists
-                    equipment_list = row.get('equipment', [])
-                    equipment_resolved_list = row.get('equipment_resolved', [])
-
-                    # Ensure lists are not None
-                    if equipment_list is None:
-                        equipment_list = []
-                    if equipment_resolved_list is None:
-                        equipment_resolved_list = []
+                    equipment_list = row.get("equipment", [])
+                    equipment_resolved_list = row.get("equipment_resolved", [])
 
                     # Insert equipment data into the `equipment` table
                     equipment_sql = "INSERT INTO equipment (willhaben_id, equipment_code, equipment_resolved) VALUES (%s, %s, %s)"
@@ -108,11 +115,11 @@ class Database:
                     else:
                         print(f"No equipment data to insert for willhaben_id {willhaben_id}")
 
-                except pymssql.IntegrityError as e:
+                except pymssql.IntegrityError:
                     # Handle duplicate key error
                     print(f"Duplicate entry for id {row['id']}. Skipping insertion.")
-                    self.conn.rollback()  # Rollback the transaction for this row
-                    continue  # Skip to the next row
+                    self.conn.rollback()
+                    continue
                 except Exception as e:
                     # Handle other exceptions
                     print(f"Error inserting data for id {row['id']}: {e}")
@@ -123,5 +130,5 @@ class Database:
             self.conn.commit()
             print(f"✅ Data successfully saved to database table '{table_name}'")
         except Exception as e:
-            self.conn.rollback()  # Rollback the transaction on error
+            self.conn.rollback()
             raise DatabaseError(f"Failed to insert data: {e}")

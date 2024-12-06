@@ -434,7 +434,7 @@ class Willhaben:
         page = 1
         while True:
             # Add a delay to avoid overloading the API
-            time.sleep(6)
+            time.sleep(10)
 
             # Fetch data from the API
             result = self.search_car(car_model_make=car_model_make, page=page, rows=200)
