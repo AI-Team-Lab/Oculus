@@ -19,7 +19,11 @@ def get_db():
 
 
 @app.teardown_appcontext
-def close_db(error):
+def close_resources(error):
+    """
+    Cleans up resources at the end of the app context.
+    """
+    # Close the database connection if it exists
     db = g.pop('db', None)
     if db is not None:
         db.close()
@@ -40,7 +44,7 @@ def index():
             if response and "advertSummaryList" in response and "advertSummary" in response["advertSummaryList"]:
                 for ad in response["advertSummaryList"]["advertSummary"]:
                     car_info = willhaben.extract_car_info(ad)
-                    print(car_info["id"])
+                    print(f"Fetching car with ID: {car_info['id']}")
                     results.append(car_info)
         except Exception as e:
             print(f"[red]Error fetching cars: {e}[/red]")
@@ -54,7 +58,6 @@ def fetch_cars():
     """
     Fetches cars based on the provided car model make and saves the data to the database or CSV.
     """
-
     db = get_db()
     valid_car_makes = willhaben.car_data.keys()
 
@@ -94,6 +97,5 @@ def fetch_cars():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, ssl_context=("./certs/fullchain.pem", "./certs/privkey.pem"))

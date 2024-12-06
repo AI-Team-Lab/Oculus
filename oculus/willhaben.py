@@ -1,6 +1,6 @@
 import csv
 import os
-import requests
+import httpx
 import json
 import random
 import time
@@ -58,6 +58,9 @@ class Willhaben:
         self.car_equipment = self.load_data(self.data_files["car_equipment"])
         self.car_location = self.load_data(self.data_files["car_location"])
 
+        # Initialize an HTTPX client with HTTP/2 support
+        self.client = httpx.Client(http2=True, headers=self.headers)
+
     @staticmethod
     def load_data(file_path: str):
         """
@@ -93,13 +96,14 @@ class Willhaben:
         """
 
         try:
-            response = requests.get(url, headers=self.headers, params=params)
+            response = self.client.get(url, params=params)
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.HTTPError as http_err:
-            print(f"HTTPError: {http_err}")
+        except httpx.HTTPStatusError as http_err:
+            print(f"[red]HTTP Error: {http_err.response.status_code} - {http_err.response.text}[/red]")
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"[red]Error: {e}[/red]")
+        return None
 
     def search_car(self, keyword: str = None, page: int = 1, rows: int = 30, sort: int = 1,
                    car_model_make: str = None, car_model_model: str = None, price_from: int = None,
@@ -463,3 +467,9 @@ class Willhaben:
             page += 1
 
         return {"status": "success", "message": "Processing completed."}
+
+    def close(self):
+        """
+        Closes the HTTPX client.
+        """
+        self.client.close()
