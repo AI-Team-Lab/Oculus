@@ -1,5 +1,7 @@
 import os
 import pymssql
+import logging
+from oculus.logging import database_logger
 from dotenv import load_dotenv
 from rich import print
 
@@ -17,12 +19,15 @@ class Database:
         self.user = os.getenv("DB_USER")
         self.password = os.getenv("DB_PASSWORD")
         self.database = os.getenv("DB_DATABASE")
+        self.logger = logging.getLogger("Database")
         self.conn = None
         self.cursor = None
 
+        self.logger.propagate = False
+
     def connect(self):
         if self.conn:
-            print("✅[yellow] Database connection already established.[/yellow]")
+            database_logger.info("✅[yellow] Database connection already established.[/yellow]")
             return
         try:
             self.conn = pymssql.connect(
@@ -35,7 +40,8 @@ class Database:
             self.cursor = self.conn.cursor()
             print("✅[green] Database connection established.[/green]")
         except Exception as e:
-            raise DatabaseError(f"Database connection failed: {e}")
+            database_logger.error(f"❌ Database connection failed: {e}")
+            raise
 
     def close(self):
         if self.cursor:
@@ -90,7 +96,8 @@ class Database:
                             row[key] = [] if key in ("equipment", "equipment_resolved", "all_image_urls") else None
 
                     # Extract non-equipment columns for main table
-                    main_columns = [col for col in row.keys() if col not in ("equipment", "equipment_resolved", "all_image_urls")]
+                    main_columns = [col for col in row.keys() if
+                                    col not in ("equipment", "equipment_resolved", "all_image_urls")]
                     main_placeholders = ["%s" for _ in main_columns]
 
                     # Extract data for main table
@@ -113,22 +120,43 @@ class Database:
                         for equipment, resolved in zip(equipment_list, equipment_resolved_list):
                             self.cursor.execute(equipment_sql, (willhaben_id, equipment, resolved))
                     else:
-                        print(f"No equipment data to insert for willhaben_id {willhaben_id}")
+                        self.logger.info(f"No equipment data to insert for willhaben_id {willhaben_id}")
 
                 except pymssql.IntegrityError:
                     # Handle duplicate key error
-                    print(f"Duplicate entry for id {row['id']}. Skipping insertion.")
+                    self.logger.warning(f"Duplicate entry for id {row['id']}. Skipping insertion.")
                     self.conn.rollback()
                     continue
                 except Exception as e:
                     # Handle other exceptions
-                    print(f"Error inserting data for id {row['id']}: {e}")
+                    self.logger.error(f"Error inserting data for id {row['id']}: {e}")
                     self.conn.rollback()
                     continue
 
             # Commit the transaction after processing all rows
             self.conn.commit()
-            print(f"✅ Data successfully saved to database table '{table_name}'")
+            self.logger.info(f"✅ Data successfully saved to database table '{table_name}'")
         except Exception as e:
             self.conn.rollback()
+            self.logger.error(f"Failed to insert data into {table_name}: {e}")
             raise DatabaseError(f"Failed to insert data: {e}")
+
+    @staticmethod
+    def clear_table(db_instance, table_name):
+        """
+        Clears all rows from the specified table.
+
+        Args:
+            db_instance (Database): Die Datenbankinstanz.
+            table_name (str): Der Name der Tabelle.
+        """
+        db_instance.ensure_connection()
+        try:
+            # Use TRUNCATE for a fast deletion
+            truncate_query = f"TRUNCATE TABLE {table_name};"
+            db_instance.cursor.execute(truncate_query)
+            db_instance.conn.commit()
+            print(f"✅ Table '{table_name}' successfully cleared.")
+        except Exception as e:
+            print(f"❌ Error while clearing data in table '{table_name}': {e}")
+            db_instance.conn.rollback()

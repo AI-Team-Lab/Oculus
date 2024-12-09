@@ -6,7 +6,6 @@ import random
 import time
 import re
 from rich import print
-
 from oculus.database import DatabaseError
 
 # List of user agents
@@ -83,26 +82,49 @@ class Willhaben:
             print(f"Error: Error during JSON decoding: {e}")
             return {}
 
-    def get_response(self, url: str, params: dict = None):
+    def get_response(self, url: str, params: dict = None, retries: int = 3, delay: int = 30):
         """
         Sends a GET request to the specified URL with optional parameters.
+        Handles retries in case of errors and checks for IP blocking.
 
         Args:
             url (str): The endpoint to send the request to.
             params (dict): Optional query parameters for the request.
+            retries (int): Number of retry attempts in case of failure. Default is 3.
+            delay (int): Delay in seconds between retry attempts. Default is 30.
 
         Returns:
             dict: The JSON response from the API or None if an error occurs.
         """
+        block_message = "Your IP address is blocked"
 
-        try:
-            response = self.client.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as http_err:
-            print(f"[red]HTTP Error: {http_err.response.status_code} - {http_err.response.text}[/red]")
-        except Exception as e:
-            print(f"[red]Error: {e}[/red]")
+        for attempt in range(1, retries + 1):
+            try:
+                response = self.client.get(url, params=params)
+                response.raise_for_status()
+
+                # Check for block message in the response content
+                if block_message in response.text:
+                    print(f"[red]IP blocked detected on attempt {attempt}: {url}[/red]")
+                    raise Exception("IP address is blocked.")
+
+                # Log success and return JSON
+                print(f"[green]Request succeeded on attempt {attempt} for URL: {url}[/green]")
+                return response.json()
+
+            except httpx.HTTPStatusError as http_err:
+                print(
+                    f"[red]HTTP Error on attempt {attempt}: {http_err.response.status_code} - {http_err.response.text}[/red]")
+            except Exception as e:
+                print(f"[red]Unexpected error on attempt {attempt}: {e}[/red]")
+
+            # Wait before retrying
+            if attempt < retries:
+                print(f"[yellow]Retrying in {delay} seconds...[/yellow]")
+                time.sleep(delay)
+
+        # Final failure
+        print("[red]All retry attempts failed. Request could not be completed.[/red]")
         return None
 
     def search_car(self, keyword: str = None, page: int = 1, rows: int = 30, sort: int = 1,
@@ -259,6 +281,48 @@ class Willhaben:
         return response
 
     @staticmethod
+    def clean_and_truncate(value, max_length=None, default="N/A"):
+        """
+        Cleans a string by removing unnecessary whitespaces and non-breaking spaces,
+        and truncates it to a specified maximum length.
+
+        Args:
+            value (str): The string to clean and truncate.
+            max_length (int): The maximum allowed length for the string.
+            default (str): The default value to return if the input is None or invalid.
+
+        Returns:
+            str: The cleaned and truncated string.
+        """
+        if not value or value == "N/A":
+            return default
+        cleaned_value = re.sub(r"\s+", " ", str(value).replace("\u00a0", " ").replace("\ufeff", " ").strip())
+        if max_length is not None:
+            return cleaned_value[:max_length]
+        return cleaned_value
+
+    @staticmethod
+    def split_and_clean(value, delimiter=";", default=None, max_length=None):
+        """
+        Splits a string by a delimiter and cleans each part.
+
+        Args:
+            value (str): The string to split.
+            delimiter (str): The delimiter to split by.
+            default (list): The default value to return if the input is invalid.
+            max_length (int): The maximum allowed length for each split part.
+
+        Returns:
+            list: A list of cleaned strings.
+        """
+        if not value or value == "N/A":
+            return default or []
+        # Use the `clean_and_truncate` method correctly
+        return [
+            Willhaben.clean_and_truncate(part, max_length=max_length) for part in value.split(delimiter)
+        ]
+
+    @staticmethod
     def extract_car_info(car):
         """
         Extracts detailed information about a car from the provided JSON structure.
@@ -269,80 +333,80 @@ class Willhaben:
         Returns:
             dict: A dictionary with the extracted and formatted car information.
         """
+        try:
+            # Extract attributes and handle values that may be lists
+            attributes = {
+                attr.get("name"): attr.get("values", ["N/A"])[0]
+                if len(attr.get("values", [])) == 1 else attr.get("values", "N/A")
+                for attr in car.get("attributes", {}).get("attribute", [])
+            }
 
-        # Extract attributes and handle values that may be lists
-        attributes = {
-            attr["name"]: attr["values"] if len(attr["values"]) > 1 else attr["values"][0]
-            for attr in car.get("attributes", {}).get("attribute", [])
-        }
+            # Extract main image URL
+            advert_image_list = car.get("advertImageList", {}).get("advertImage", [])
+            main_image_url = advert_image_list[0].get("mainImageUrl") if advert_image_list else "N/A"
 
-        # Extract the first main image URL from the advert image list
-        advert_image_list = car.get("advertImageList", {}).get("advertImage", [])
-        main_image_url = advert_image_list[0].get("mainImageUrl") if advert_image_list else "N/A"
+            # Clean and truncate fields to match database column sizes
+            specification = Willhaben.clean_and_truncate(attributes.get("CAR_MODEL/MODEL_SPECIFICATION"),
+                                                         max_length=255)
+            description_head = Willhaben.clean_and_truncate(car.get("description"), max_length=255)
+            description = Willhaben.clean_and_truncate(attributes.get("BODY_DYN", "N/A"), max_length=4000)
+            heading = Willhaben.clean_and_truncate(attributes.get("HEADING"), max_length=255)
 
-        # Clean up the raw description by removing unnecessary whitespaces and non-breaking spaces
-        raw_description = attributes.get("BODY_DYN", "N/A")
-        description = re.sub(r"\s+", " ", raw_description.replace("\u00a0", " ").replace("\ufeff", " ").strip())
+            # Clean and process equipment
+            raw_equipment = attributes.get("EQUIPMENT", "N/A")
+            equipment = Willhaben.split_and_clean(raw_equipment)
 
-        # Extract and process the 'equipment' field
-        raw_equipment = attributes.get("EQUIPMENT", "N/A")
-        if raw_equipment != "N/A":
-            # Split the semicolon-separated string into a list
-            equipment = raw_equipment.split(";")
-        else:
-            equipment = "N/A"
+            # Clean and process all image URLs
+            raw_all_image_urls = attributes.get("ALL_IMAGE_URLS", "N/A")
+            all_image_urls = Willhaben.split_and_clean(raw_all_image_urls)
 
-        # Extract and process the 'all_image_urls' field
-        raw_all_image_urls = attributes.get("ALL_IMAGE_URLS", "N/A")
-        if raw_all_image_urls != "N/A":
-            all_image_urls = raw_all_image_urls.split(";")
-        else:
-            all_image_urls = "N/A"
-
-        # Return the extracted information as a dictionary
-        return {
-            "id": car.get("id"),
-            "advertStatus": car.get("advertStatus").get("id"),
-            "make": attributes.get("CAR_MODEL/MAKE"),
-            "model": attributes.get("CAR_MODEL/MODEL"),
-            "specification": attributes.get("CAR_MODEL/MODEL_SPECIFICATION"),
-            "description_head": car.get("description"),
-            "description": description,
-            "year_model": attributes.get("YEAR_MODEL"),
-            "transmission": attributes.get("TRANSMISSION"),
-            "transmission_resolved": attributes.get("TRANSMISSION_RESOLVED"),
-            "mileage": attributes.get("MILEAGE"),
-            "noofseats": attributes.get("NOOFSEATS"),
-            "engine_effect": attributes.get("ENGINE/EFFECT"),
-            "engine_fuel": attributes.get("ENGINE/FUEL"),
-            "engine_fuel_resolved": attributes.get("ENGINE/FUEL_RESOLVED"),
-            "heading": attributes.get("HEADING"),
-            "car_type": attributes.get("CAR_TYPE"),
-            "no_of_owners": attributes.get("NO_OF_OWNERS"),
-            "color": attributes.get("EXTERIORCOLOURMAIN"),
-            "condition": attributes.get("CONDITION"),
-            "condition_resolved": attributes.get("CONDITION_RESOLVED"),
-            "equipment": equipment,
-            "equipment_resolved": attributes.get("EQUIPMENT_RESOLVED"),
-            "address": attributes.get("ADDRESS"),
-            "location": attributes.get("LOCATION"),
-            "postcode": attributes.get("POSTCODE"),
-            "district": attributes.get("DISTRICT"),
-            "state": attributes.get("STATE"),
-            "country": attributes.get("COUNTRY"),
-            "coordinates": attributes.get("COORDINATES"),
-            "price": attributes.get("PRICE/AMOUNT"),
-            "price_for_display": attributes.get("PRICE_FOR_DISPLAY"),
-            "warranty": attributes.get("WARRANTY"),
-            "warranty_resolved": attributes.get("WARRANTY_RESOLVED"),
-            "published": attributes.get("PUBLISHED"),
-            "published_string": attributes.get("PUBLISHED_String"),
-            "last_updated": attributes.get("LAST_UPDATED"),
-            "isprivate": attributes.get("ISPRIVATE"),
-            "seo_url": attributes.get("SEO_URL"),
-            "main_image_url": main_image_url,
-            "all_image_urls": all_image_urls
-        }
+            # Return the extracted information as a dictionary
+            return {
+                "id": car.get("id"),
+                "advertStatus": car.get("advertStatus", {}).get("id", "N/A"),
+                "make": attributes.get("CAR_MODEL/MAKE"),
+                "model": attributes.get("CAR_MODEL/MODEL"),
+                "specification": specification,
+                "description_head": description_head,
+                "description": description,
+                "year_model": attributes.get("YEAR_MODEL"),
+                "transmission": attributes.get("TRANSMISSION"),
+                "transmission_resolved": attributes.get("TRANSMISSION_RESOLVED"),
+                "mileage": attributes.get("MILEAGE"),
+                "noofseats": attributes.get("NOOFSEATS"),
+                "engine_effect": attributes.get("ENGINE/EFFECT"),
+                "engine_fuel": attributes.get("ENGINE/FUEL"),
+                "engine_fuel_resolved": attributes.get("ENGINE/FUEL_RESOLVED"),
+                "heading": heading,
+                "car_type": attributes.get("CAR_TYPE"),
+                "no_of_owners": attributes.get("NO_OF_OWNERS"),
+                "color": attributes.get("EXTERIORCOLOURMAIN"),
+                "condition": attributes.get("CONDITION"),
+                "condition_resolved": attributes.get("CONDITION_RESOLVED"),
+                "equipment": equipment,
+                "equipment_resolved": attributes.get("EQUIPMENT_RESOLVED"),
+                "address": attributes.get("ADDRESS"),
+                "location": attributes.get("LOCATION"),
+                "postcode": attributes.get("POSTCODE"),
+                "district": attributes.get("DISTRICT"),
+                "state": attributes.get("STATE"),
+                "country": attributes.get("COUNTRY"),
+                "coordinates": attributes.get("COORDINATES"),
+                "price": attributes.get("PRICE/AMOUNT"),
+                "price_for_display": attributes.get("PRICE_FOR_DISPLAY"),
+                "warranty": attributes.get("WARRANTY"),
+                "warranty_resolved": attributes.get("WARRANTY_RESOLVED"),
+                "published": attributes.get("PUBLISHED"),
+                "published_string": attributes.get("PUBLISHED_String"),
+                "last_updated": attributes.get("LAST_UPDATED"),
+                "isprivate": attributes.get("ISPRIVATE"),
+                "seo_url": attributes.get("SEO_URL"),
+                "main_image_url": main_image_url,
+                "all_image_urls": all_image_urls,
+            }
+        except Exception as e:
+            print(f"[red]Error extracting car info: {e}[/red]")
+            return {}
 
     @staticmethod
     def save_data(data, save_type="csv", filename=None, db_instance=None, table_name=None):
@@ -386,6 +450,7 @@ class Willhaben:
                 print(f"❌ Database error while saving data: {e}")
             except Exception as e:
                 print(f"❌ Unexpected error while saving to database: {e}")
+
         else:
             # Fehlerhafte `save_type`
             raise ValueError("Invalid save_type. Use 'csv' or 'db'.")
@@ -395,7 +460,7 @@ class Willhaben:
         Process cars and save them to the desired output (CSV or database).
 
         Args:
-            car_model_make (str): The car make/model to process.
+            car_model_make (str): The car make/model to process. If None, all makes are processed.
             save_type (str): The type of output ("csv" or "db").
             db_instance (Database): Database instance for saving data.
             table_name (str): Name of the database table.
@@ -403,70 +468,77 @@ class Willhaben:
         Returns:
             dict: Summary of the processing.
         """
-        # Define the directory for CSV exports
+        # Handle all car makes if `car_model_make` is None
+        if car_model_make is None:
+            print("[blue]Processing all car makes...[/blue]")
+            results = []
+            for make in self.car_data.keys():  # Iterate through all available car makes
+                print(f"[green]Processing car make: {make}[/green]")
+                result = self.process_cars(
+                    car_model_make=make,
+                    save_type=save_type,
+                    db_instance=db_instance,
+                    table_name=table_name
+                )
+                results.append({make: result})
+            return {"status": "success", "message": "Processed all car makes.", "results": results}
+
+        # Überprüfen, ob `car_model_make` in `car_data` existiert
+        if car_model_make.lower() not in self.car_data:
+            error_message = f"[red]Error: No data found for CAR_MODEL/MAKE '{car_model_make}'.[/red]"
+            print(error_message)
+            return {"status": "error", "message": error_message}
+
+        print(f"[blue]Processing cars for CAR_MODEL/MAKE: {car_model_make}[/blue]")
         directory = "csv_exports"
         os.makedirs(directory, exist_ok=True)  # Create directory if it doesn't exist
 
-        # Define the CSV filename
         filename = os.path.join(directory, f"car_make_{car_model_make or 'all'}.csv")
 
-        # Initialize the CSV file and dynamically write the header (if save_type is CSV)
         if save_type == "csv":
+            # Initialize the CSV with headers dynamically
             try:
-                # Fetch a sample car to extract headers dynamically
                 sample_result = self.search_car(car_model_make=car_model_make, page=1, rows=1)
                 if sample_result and "advertSummaryList" in sample_result and "advertSummary" in sample_result[
                     "advertSummaryList"]:
                     sample_car = sample_result["advertSummaryList"]["advertSummary"][0]
                     sample_headers = self.extract_car_info(sample_car).keys()
-                else:
-                    print(f"No data available for {car_model_make}.")
-                    return {"status": "error", "message": f"No data found for {car_model_make}."}
+                    with open(filename, mode="w", newline="", encoding="utf-8") as file:
+                        writer = csv.writer(file)
+                        writer.writerow(sample_headers)
+            except Exception as e:
+                print(f"[red]Error initializing CSV: {e}[/red]")
+                return {"status": "error", "message": str(e)}
 
-                with open(filename, mode="w", newline="", encoding="utf-8") as file:
-                    writer = csv.writer(file)
-                    writer.writerow(sample_headers)  # Dynamically write the headers
-
-            except PermissionError:
-                print(f"Error: Unable to access '{filename}'. Please close the file if it's open in another program.")
-                return {"status": "error", "message": f"File '{filename}' is locked or in use."}
-
+        # Fetch and process cars
         page = 1
         while True:
-            # Add a delay to avoid overloading the API
-            time.sleep(10)
-
-            # Fetch data from the API
+            time.sleep(5)  # Avoid overloading the API
             result = self.search_car(car_model_make=car_model_make, page=page, rows=200)
             if not result or result.get("rowsReturned") == 0:
-                print(f"No more vehicles found for CAR_MODEL/MAKE {car_model_make}.")
+                print(f"[yellow]No more vehicles found for CAR_MODEL/MAKE {car_model_make}.[/yellow]")
                 break
 
-            # Process the cars
-            rows_returned = result.get("rowsReturned", 0)
-            print(f"Processing {rows_returned} vehicles on page {page}...")
+            print(f"[green]Processing {result.get('rowsReturned', 0)} vehicles on page {page}...[/green]")
 
-            car_data = []
-            for car in result.get("advertSummaryList", {}).get("advertSummary", []):
-                car_info = self.extract_car_info(car)
-                car_data.append(car_info)
+            car_data = [self.extract_car_info(car) for car in
+                        result.get("advertSummaryList", {}).get("advertSummary", [])]
 
-            # Save the processed data
             try:
                 self.save_data(
                     data=car_data,
                     save_type=save_type,
                     filename=filename if save_type == "csv" else None,
-                    db_instance=db_instance if save_type == "db" else None,  # Pass db_instance here
+                    db_instance=db_instance if save_type == "db" else None,
                     table_name=table_name if save_type == "db" else None,
                 )
             except Exception as e:
-                print(f"Error saving data: {e}")
-                return {"status": "error", "message": f"Failed to save data: {e}"}
+                print(f"[red]Error saving data: {e}[/red]")
+                return {"status": "error", "message": str(e)}
 
             page += 1
 
-        return {"status": "success", "message": "Processing completed."}
+        return {"status": "success", "message": f"Processed cars for make: {car_model_make}"}
 
     def close(self):
         """

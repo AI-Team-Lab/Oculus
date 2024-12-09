@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify, g
 from oculus import Willhaben, Database
 from oculus.tasks import fetch_cars_task
 from rich import print
+from celery.result import AsyncResult
 
 # Initialize Flask
 app = Flask(__name__)
@@ -11,6 +12,9 @@ willhaben = Willhaben()
 
 
 def get_db():
+    """
+    Provides a database connection for the current app context.
+    """
     if 'db' not in g:
         g.db = Database()
         g.db.connect()
@@ -60,23 +64,29 @@ def fetch_cars():
     try:
         car_model_make = None
 
-        # Handling GET request
+        # Handle GET request
         if request.method == "GET":
             car_model_make = request.args.get("car_model_make", None)
 
-        # Handling POST request
+        # Handle POST request
         elif request.method == "POST":
             data = request.get_json()
             if not data:
                 return jsonify({"status": "error", "message": "Invalid JSON payload."}), 400
             car_model_make = data.get("car_model_make", None)
 
+        # Validate car_model_make
+        if car_model_make and car_model_make.lower() not in willhaben.car_data:
+            error_message = f"Invalid CAR_MODEL/MAKE: '{car_model_make}'. Please provide a valid car make."
+            print(f"[red]{error_message}[/red]")
+            return jsonify({"status": "error", "message": error_message}), 400
+
+        # Task Queuing
         if car_model_make:
             print(f"[blue]Queuing task for CAR_MODEL/MAKE: {car_model_make}[/blue]")
         else:
             print("[blue]Queuing task for all cars.[/blue]")
 
-        # Trigger Celery Task
         task = fetch_cars_task.apply_async(args=[car_model_make])
         return jsonify({"status": "success", "task_id": task.id})
 
@@ -90,16 +100,34 @@ def task_status(task_id):
     """
     Returns the status of a Celery task.
     """
-    from celery.result import AsyncResult
+    try:
+        task_result = AsyncResult(task_id)
 
-    task_result = AsyncResult(task_id)
-    response = {
-        "task_id": task_id,
-        "status": task_result.status,
-        "result": task_result.result
-    }
-    return jsonify(response)
+        # Handle task state and possible failure
+        if task_result.state == "FAILURE":
+            response = {
+                "task_id": task_id,
+                "status": task_result.state,
+                "error": str(task_result.info),  # Provides detailed error information
+            }
+        else:
+            response = {
+                "task_id": task_id,
+                "status": task_result.state,
+                "result": task_result.result,
+            }
+
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"[red]Error retrieving task status: {e}[/red]")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, ssl_context=("./certs/fullchain.pem", "./certs/privkey.pem"))
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=True,
+        ssl_context=("./certs/fullchain.pem", "./certs/privkey.pem"),
+    )

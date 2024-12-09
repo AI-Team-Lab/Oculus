@@ -164,4 +164,4 @@ cython_debug/
 # Own Ignores
 .idea/
 csv_exports/
-logs/
+logs/*
