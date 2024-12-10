@@ -136,7 +136,7 @@ class Willhaben:
                    wltp_range_to: str = None, transmission: str = None, wheel_drive: str = None, equipment: list = None,
                    exterior_colour_main: str = None, no_of_doors_from: str = None, no_of_doors_to: str = None,
                    no_of_seats_from: str = None, no_of_seats_to: str = None, area_id: str = None, dealer: str = None,
-                   periode: str = None):
+                   periode: int = None):
         """
                 Performs a car search query on the Willhaben API based on various filters.
 
@@ -173,7 +173,7 @@ class Willhaben:
                     no_of_seats_to (str): Maximum number of seats.
                     area_id (str): Location area ID.
                     dealer (str): Dealer information.
-                    periode (str): Period (e.g., daily, weekly).
+                    periode (int): Period in hours (e.g., 24, 28).
 
                 Returns:
                     dict: The search results or None if no cars are found.
@@ -346,11 +346,10 @@ class Willhaben:
             main_image_url = advert_image_list[0].get("mainImageUrl") if advert_image_list else "N/A"
 
             # Clean and truncate fields to match database column sizes
-            specification = Willhaben.clean_and_truncate(attributes.get("CAR_MODEL/MODEL_SPECIFICATION"),
-                                                         max_length=255)
-            description_head = Willhaben.clean_and_truncate(car.get("description"), max_length=255)
-            description = Willhaben.clean_and_truncate(attributes.get("BODY_DYN", "N/A"), max_length=4000)
-            heading = Willhaben.clean_and_truncate(attributes.get("HEADING"), max_length=255)
+            specification = Willhaben.clean_and_truncate(attributes.get("CAR_MODEL/MODEL_SPECIFICATION"))
+            description_head = Willhaben.clean_and_truncate(car.get("description"))
+            description = Willhaben.clean_and_truncate(attributes.get("BODY_DYN", "N/A"))
+            heading = Willhaben.clean_and_truncate(attributes.get("HEADING"))
 
             # Clean and process equipment
             raw_equipment = attributes.get("EQUIPMENT", "N/A")
@@ -409,7 +408,8 @@ class Willhaben:
             return {}
 
     @staticmethod
-    def save_data(data, save_type="csv", filename=None, db_instance=None, table_name=None):
+    def save_data(data, save_type="csv", filename=None, db_instance=None, table_name=None, current_make="All",
+                  current_page="Unknown"):
         """
         Saves data either to a CSV file or a database.
 
@@ -419,40 +419,56 @@ class Willhaben:
             filename (str): The filename for the CSV (if save_type is "csv").
             db_instance (Database): The database instance object (if save_type is "db").
             table_name (str): The name of the database table (if save_type is "db").
-        Raises:
-            ValueError: If required arguments are missing or invalid.
+            current_make (str): The current car make being processed. Default: "All".
+            current_page (int): The current page being processed. Default: "Unknown".
         """
+        # Überprüfen, ob Daten vorhanden sind
+        if not data:
+            print(f"⚠️ No data to save for make '{current_make}' on page {current_page}'.")
+            return
+
+        # Speicherung in CSV
         if save_type == "csv":
-            # CSV Speicher-Logik
             if not filename:
                 raise ValueError("Filename must be provided for CSV storage.")
             try:
+                # Datei öffnen und Daten anhängen
                 with open(filename, mode="a", newline="", encoding="utf-8") as file:
                     writer = csv.writer(file)
-                    # Schreibe die Zeilen aus den Daten
+
+                    # Überschriften hinzufügen, wenn die Datei leer ist
+                    if file.tell() == 0:
+                        sample_row = data[0]
+                        writer.writerow(sample_row.keys())
+
+                    # Daten schreiben
                     for row in data:
                         writer.writerow(row.values())
-                print(f"✅ Data successfully saved to CSV: {filename}")
+
+                print(
+                    f"✅ Data successfully saved to CSV: '{filename}' for make '{current_make}' on page {current_page}.")
             except PermissionError as e:
                 print(f"❌ Permission error: Unable to write to '{filename}'. Details: {e}")
             except Exception as e:
                 print(f"❌ Unexpected error while saving to CSV: {e}")
 
+        # Speicherung in die Datenbank
         elif save_type == "db":
-            # Datenbank Speicher-Logik
             if not db_instance or not table_name:
                 raise ValueError("Database instance and table name must be provided for database storage.")
             try:
-                # Verwende die zentrale `insert_data`-Methode aus der `Database`-Klasse
-                db_instance.insert_data(table_name, data)
-                print(f"✅ Data successfully saved to database table '{table_name}'")
+                # Daten in die Datenbank schreiben
+                db_instance.insert_data(table_name, data, current_make=current_make, current_page=current_page)
+
+                print(
+                    f"✅ Data successfully saved to table '{table_name}' for make '{current_make}' on page {current_page}.")
             except DatabaseError as e:
                 print(f"❌ Database error while saving data: {e}")
             except Exception as e:
                 print(f"❌ Unexpected error while saving to database: {e}")
 
+        # Ungültiger Speicher-Typ
         else:
-            # Fehlerhafte `save_type`
             raise ValueError("Invalid save_type. Use 'csv' or 'db'.")
 
     def process_cars(self, car_model_make=None, save_type="csv", db_instance=None, table_name=None):
@@ -468,11 +484,10 @@ class Willhaben:
         Returns:
             dict: Summary of the processing.
         """
-        # Handle all car makes if `car_model_make` is None
         if car_model_make is None:
             print("[blue]Processing all car makes...[/blue]")
             results = []
-            for make in self.car_data.keys():  # Iterate through all available car makes
+            for make in self.car_data.keys():
                 print(f"[green]Processing car make: {make}[/green]")
                 result = self.process_cars(
                     car_model_make=make,
@@ -483,7 +498,6 @@ class Willhaben:
                 results.append({make: result})
             return {"status": "success", "message": "Processed all car makes.", "results": results}
 
-        # Überprüfen, ob `car_model_make` in `car_data` existiert
         if car_model_make.lower() not in self.car_data:
             error_message = f"[red]Error: No data found for CAR_MODEL/MAKE '{car_model_make}'.[/red]"
             print(error_message)
@@ -491,12 +505,11 @@ class Willhaben:
 
         print(f"[blue]Processing cars for CAR_MODEL/MAKE: {car_model_make}[/blue]")
         directory = "csv_exports"
-        os.makedirs(directory, exist_ok=True)  # Create directory if it doesn't exist
+        os.makedirs(directory, exist_ok=True)
 
         filename = os.path.join(directory, f"car_make_{car_model_make or 'all'}.csv")
 
         if save_type == "csv":
-            # Initialize the CSV with headers dynamically
             try:
                 sample_result = self.search_car(car_model_make=car_model_make, page=1, rows=1)
                 if sample_result and "advertSummaryList" in sample_result and "advertSummary" in sample_result[
@@ -510,10 +523,9 @@ class Willhaben:
                 print(f"[red]Error initializing CSV: {e}[/red]")
                 return {"status": "error", "message": str(e)}
 
-        # Fetch and process cars
         page = 1
         while True:
-            time.sleep(5)  # Avoid overloading the API
+            time.sleep(10)
             result = self.search_car(car_model_make=car_model_make, page=page, rows=200)
             if not result or result.get("rowsReturned") == 0:
                 print(f"[yellow]No more vehicles found for CAR_MODEL/MAKE {car_model_make}.[/yellow]")
@@ -531,6 +543,8 @@ class Willhaben:
                     filename=filename if save_type == "csv" else None,
                     db_instance=db_instance if save_type == "db" else None,
                     table_name=table_name if save_type == "db" else None,
+                    current_make=car_model_make,
+                    current_page=page
                 )
             except Exception as e:
                 print(f"[red]Error saving data: {e}[/red]")

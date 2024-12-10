@@ -78,15 +78,18 @@ class Database:
         except Exception as e:
             raise DatabaseError(f"Query execution failed: {e}")
 
-    def insert_data(self, table_name, data):
+    def insert_data(self, table_name, data, current_make="Unknown", current_page="Unknown"):
         """
         Inserts data into a specified table.
 
         Args:
             table_name (str): The name of the table to insert into.
             data (list): A list of dictionaries, each representing a row of data.
+            current_make (str): The make of the car being processed (default: "Unknown").
+            current_page (str): The page number currently being processed (default: "Unknown").
         """
         self.ensure_connection()
+        successful_inserts = 0  # Zähler für erfolgreiche Einfügungen
         try:
             for row in data:
                 try:
@@ -106,6 +109,7 @@ class Database:
                     # Insert main data into the `willhaben` table
                     main_sql = f"INSERT INTO {table_name} ({', '.join(main_columns)}) VALUES ({', '.join(main_placeholders)})"
                     self.cursor.execute(main_sql, main_data)
+                    successful_inserts += 1  # Erfolg protokollieren
 
                     # Use row['id'] as the willhaben_id
                     willhaben_id = row["id"]
@@ -119,12 +123,13 @@ class Database:
                     if equipment_list and equipment_resolved_list:
                         for equipment, resolved in zip(equipment_list, equipment_resolved_list):
                             self.cursor.execute(equipment_sql, (willhaben_id, equipment, resolved))
-                    else:
-                        self.logger.info(f"No equipment data to insert for willhaben_id {willhaben_id}")
 
                 except pymssql.IntegrityError:
                     # Handle duplicate key error
-                    self.logger.warning(f"Duplicate entry for id {row['id']}. Skipping insertion.")
+                    duplicate_make = row.get("make", "Unknown")  # Extrahiere die Make-Information
+                    self.logger.warning(
+                        f"Duplicate entry for id {row['id']}. Skipping insertion. Make: {duplicate_make}, Page: {current_page}."
+                    )
                     self.conn.rollback()
                     continue
                 except Exception as e:
@@ -135,7 +140,18 @@ class Database:
 
             # Commit the transaction after processing all rows
             self.conn.commit()
-            self.logger.info(f"✅ Data successfully saved to database table '{table_name}'")
+
+            if successful_inserts > 0:
+                self.logger.info(
+                    f"✅ Data successfully saved to table '{table_name}' for make '{current_make}' on page {current_page}. "
+                    f"Total successful inserts: {successful_inserts}."
+                )
+            else:
+                self.logger.warning(
+                    f"⚠️ No data inserted into table '{table_name}' for make '{current_make}' on page {current_page}'. "
+                    "All entries were duplicates."
+                )
+
         except Exception as e:
             self.conn.rollback()
             self.logger.error(f"Failed to insert data into {table_name}: {e}")

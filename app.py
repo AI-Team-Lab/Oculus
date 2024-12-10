@@ -63,10 +63,12 @@ def fetch_cars():
     """
     try:
         car_model_make = None
+        start_make = None  # Startpunkt für die Marken
 
         # Handle GET request
         if request.method == "GET":
             car_model_make = request.args.get("car_model_make", None)
+            start_make = request.args.get("start_make", None)
 
         # Handle POST request
         elif request.method == "POST":
@@ -74,6 +76,7 @@ def fetch_cars():
             if not data:
                 return jsonify({"status": "error", "message": "Invalid JSON payload."}), 400
             car_model_make = data.get("car_model_make", None)
+            start_make = data.get("start_make", None)
 
         # Validate car_model_make
         if car_model_make and car_model_make.lower() not in willhaben.car_data:
@@ -81,13 +84,22 @@ def fetch_cars():
             print(f"[red]{error_message}[/red]")
             return jsonify({"status": "error", "message": error_message}), 400
 
+        # Validate start_make
+        if start_make and start_make.lower() not in willhaben.car_data:
+            error_message = f"Invalid START_MAKE: '{start_make}'. Please provide a valid start make."
+            print(f"[red]{error_message}[/red]")
+            return jsonify({"status": "error", "message": error_message}), 400
+
         # Task Queuing
         if car_model_make:
             print(f"[blue]Queuing task for CAR_MODEL/MAKE: {car_model_make}[/blue]")
+        elif start_make:
+            print(f"[blue]Queuing task for all cars starting from make: {start_make}[/blue]")
         else:
             print("[blue]Queuing task for all cars.[/blue]")
 
-        task = fetch_cars_task.apply_async(args=[car_model_make])
+        # Pass car_model_make or start_make to the Celery task
+        task = fetch_cars_task.apply_async(args=[car_model_make, start_make])
         return jsonify({"status": "success", "task_id": task.id})
 
     except Exception as e:
