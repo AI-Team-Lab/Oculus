@@ -4,16 +4,7 @@ from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime
 
 # Sicherstellen, dass das Log-Verzeichnis existiert
-log_folder = os.path.abspath("logs")  # Absoluter Pfad
-os.makedirs(log_folder, exist_ok=True)
-
-import os
-import logging
-from logging.handlers import TimedRotatingFileHandler
-from datetime import datetime
-
-# Sicherstellen, dass das Log-Verzeichnis existiert
-log_folder = os.path.abspath("logs")  # Absoluter Pfad
+log_folder = os.path.abspath("logs")
 os.makedirs(log_folder, exist_ok=True)
 
 
@@ -34,15 +25,12 @@ def setup_logger(name, log_file_prefix, level=logging.INFO, add_stream_handler=T
     logger.setLevel(level)
 
     # Doppelte Handler vermeiden
-    if not logger.hasHandlers():
+    if not any(isinstance(handler, TimedRotatingFileHandler) for handler in logger.handlers):
         try:
-            # Datum in den Dateinamen einfügen
-            today_date = datetime.now().strftime("%Y-%m-%d")
-            log_file = os.path.join(log_folder, f"{log_file_prefix}-{today_date}.log")
-
-            # Timed Rotating File Handler einrichten
+            # Datei mit Datum und Rotierung einrichten
+            log_file = os.path.join(log_folder, f"{log_file_prefix}.log")
             handler = TimedRotatingFileHandler(log_file, when="midnight", interval=1, backupCount=30)
-            handler.suffix = "%Y-%m-%d"  # Datumsformat für neue Dateien
+            handler.suffix = "%Y-%m-%d"
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             handler.setFormatter(formatter)
             logger.addHandler(handler)
@@ -58,10 +46,6 @@ def setup_logger(name, log_file_prefix, level=logging.INFO, add_stream_handler=T
 
     return logger
 
-
-# Logger erstellen
-database_logger = setup_logger("Database", "database", level=logging.INFO)
-celery_logger = setup_logger("Celery", "celery", level=logging.INFO)
 
 # Logger erstellen
 database_logger = setup_logger("Database", "database", level=logging.INFO)
