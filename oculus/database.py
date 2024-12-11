@@ -4,6 +4,7 @@ import logging
 from oculus.logging import database_logger
 from dotenv import load_dotenv
 from rich import print
+import json
 
 load_dotenv()
 
@@ -59,120 +60,130 @@ class Database:
         print("✅[green] Database connection closed.[/green]")
 
     def ensure_connection(self):
-        """
-        Ensures that the database connection is active.
-        Reconnects if necessary.
-        """
         if not self.conn:
             print("[yellow]Reconnecting to the database...[/yellow]")
             self.connect()
 
-    def execute_query(self, query, params=None):
+    def load_car_data(self, file_path):
         """
-        Executes a query and fetches all results.
-        """
-        self.ensure_connection()
-        try:
-            self.cursor.execute(query, params or [])
-            return self.cursor.fetchall()
-        except Exception as e:
-            raise DatabaseError(f"Query execution failed: {e}")
-
-    def insert_data(self, table_name, data, current_make="Unknown", current_page="Unknown"):
-        """
-        Inserts data into a specified table.
+        Lädt Autodaten aus einer JSON-Datei, leert die Tabellen `makes` und `models` und fügt neue Daten ein.
 
         Args:
-            table_name (str): The name of the table to insert into.
-            data (list): A list of dictionaries, each representing a row of data.
-            current_make (str): The make of the car being processed (default: "Unknown").
-            current_page (str): The page number currently being processed (default: "Unknown").
+            file_path (str): Der Pfad zur JSON-Datei.
+
+        Raises:
+            DatabaseError: Wenn ein Fehler beim Einfügen auftritt.
         """
+        # Verbindung sicherstellen
         self.ensure_connection()
-        successful_inserts = 0  # Zähler für erfolgreiche Einfügungen
+
         try:
-            for row in data:
-                try:
-                    # Replace 'N/A', empty strings, and None with appropriate default values
-                    for key, value in row.items():
-                        if value in ("N/A", "", None):
-                            row[key] = [] if key in ("equipment", "equipment_resolved", "all_image_urls") else None
+            # Tabellen leeren
+            self.logger.info("Tabellen 'makes' und 'models' werden geleert...")
+            try:
+                # Constraints deaktivieren
+                self.cursor.execute("ALTER TABLE models NOCHECK CONSTRAINT ALL")
+                self.cursor.execute("ALTER TABLE makes NOCHECK CONSTRAINT ALL")
 
-                    # Extract non-equipment columns for main table
-                    main_columns = [col for col in row.keys() if
-                                    col not in ("equipment", "equipment_resolved", "all_image_urls")]
-                    main_placeholders = ["%s" for _ in main_columns]
+                # Tabellen leeren
+                self.cursor.execute("DELETE FROM models")
+                self.cursor.execute("DELETE FROM makes")
+                self.conn.commit()
 
-                    # Extract data for main table
-                    main_data = tuple(row[col] for col in main_columns)
+                # Constraints aktivieren
+                self.cursor.execute("ALTER TABLE models CHECK CONSTRAINT ALL")
+                self.cursor.execute("ALTER TABLE makes CHECK CONSTRAINT ALL")
 
-                    # Insert main data into the `willhaben` table
-                    main_sql = f"INSERT INTO {table_name} ({', '.join(main_columns)}) VALUES ({', '.join(main_placeholders)})"
-                    self.cursor.execute(main_sql, main_data)
-                    successful_inserts += 1  # Erfolg protokollieren
+                self.logger.info("Tabellen 'makes' und 'models' wurden erfolgreich geleert.")
+            except Exception as e:
+                self.conn.rollback()
+                self.logger.error(f"Fehler beim Leeren der Tabellen: {e}")
+                raise DatabaseError(f"Failed to clear tables: {e}")
 
-                    # Use row['id'] as the willhaben_id
-                    willhaben_id = row["id"]
+            # JSON-Datei laden
+            with open(file_path, 'r', encoding='utf-8') as file:
+                car_data = json.load(file)
 
-                    # Extract equipment and equipment_resolved lists
-                    equipment_list = row.get("equipment", [])
-                    equipment_resolved_list = row.get("equipment_resolved", [])
+            # Daten einfügen
+            self.logger.info("Daten aus der JSON-Datei werden geladen...")
+            for make_name, make_data in car_data.items():
+                make_id = make_data.get("id")
+                models = make_data.get("models", {})
 
-                    # Insert equipment data into the `equipment` table
-                    equipment_sql = "INSERT INTO equipment (willhaben_id, equipment_code, equipment_resolved) VALUES (%s, %s, %s)"
-                    if equipment_list and equipment_resolved_list:
-                        for equipment, resolved in zip(equipment_list, equipment_resolved_list):
-                            self.cursor.execute(equipment_sql, (willhaben_id, equipment, resolved))
+                # Marke einfügen
+                insert_make_query = "INSERT INTO makes (make_id, make_name) VALUES (%s, %s)"
+                self.cursor.execute(insert_make_query, (make_id, make_name))
 
-                except pymssql.IntegrityError:
-                    # Handle duplicate key error
-                    duplicate_make = row.get("make", "Unknown")  # Extrahiere die Make-Information
-                    self.logger.warning(
-                        f"Duplicate entry for id {row['id']}. Skipping insertion. Make: {duplicate_make}, Page: {current_page}."
-                    )
-                    self.conn.rollback()
-                    continue
-                except Exception as e:
-                    # Handle other exceptions
-                    self.logger.error(f"Error inserting data for id {row['id']}: {e}")
-                    self.conn.rollback()
-                    continue
+                # Modelle einfügen
+                for model_name, model_id in models.items():
+                    insert_model_query = "INSERT INTO models (model_id, model_name, make_id) VALUES (%s, %s, %s)"
+                    self.cursor.execute(insert_model_query, (model_id, model_name, make_id))
 
-            # Commit the transaction after processing all rows
+            # Änderungen speichern
             self.conn.commit()
-
-            if successful_inserts > 0:
-                self.logger.info(
-                    f"✅ Data successfully saved to table '{table_name}' for make '{current_make}' on page {current_page}. "
-                    f"Total successful inserts: {successful_inserts}."
-                )
-            else:
-                self.logger.warning(
-                    f"⚠️ No data inserted into table '{table_name}' for make '{current_make}' on page {current_page}'. "
-                    "All entries were duplicates."
-                )
+            self.logger.info(f"Daten aus {file_path} erfolgreich geladen.")
 
         except Exception as e:
             self.conn.rollback()
-            self.logger.error(f"Failed to insert data into {table_name}: {e}")
-            raise DatabaseError(f"Failed to insert data: {e}")
+            self.logger.error(f"Fehler beim Laden der Autodaten: {e}")
+            raise DatabaseError(f"Failed to load car data: {e}")
 
-    @staticmethod
-    def clear_table(db_instance, table_name):
+    def move_data_to_dwh(self, staging_table, dwh_table, transformations=None, delete_from_staging=False):
         """
-        Clears all rows from the specified table.
+        Moves data from the staging table to the data warehouse table, applying transformations if needed.
 
         Args:
-            db_instance (Database): Die Datenbankinstanz.
-            table_name (str): Der Name der Tabelle.
+            staging_table (str): The name of the staging table.
+            dwh_table (str): The name of the DWH table.
+            transformations (dict): Optional. A dictionary specifying column transformations.
+                                    Key: column name in staging.
+                                    Value: a function to transform the column.
+            delete_from_staging (bool): Whether to delete rows from the staging table after insertion. Default is False.
         """
-        db_instance.ensure_connection()
+        self.ensure_connection()
         try:
-            # Use TRUNCATE for a fast deletion
-            truncate_query = f"TRUNCATE TABLE {table_name};"
-            db_instance.cursor.execute(truncate_query)
-            db_instance.conn.commit()
-            print(f"✅ Table '{table_name}' successfully cleared.")
+            # Fetch data from the staging table
+            select_query = f"SELECT * FROM {staging_table}"
+            self.cursor.execute(select_query)
+            rows = self.cursor.fetchall()
+
+            if not rows:
+                self.logger.info(f"No data found in staging table '{staging_table}'.")
+                return
+
+            # Apply transformations if specified
+            transformed_rows = []
+            for row in rows:
+                transformed_row = list(row)
+                if transformations:
+                    for column, transform_func in transformations.items():
+                        col_index = self.cursor.description.index((column,))
+                        transformed_row[col_index] = transform_func(row[col_index])
+                transformed_rows.append(transformed_row)
+
+            # Insert data into the DWH table
+            columns = [desc[0] for desc in self.cursor.description]
+            placeholders = ", ".join(["%s"] * len(columns))
+            insert_query = f"INSERT INTO {dwh_table} ({', '.join(columns)}) VALUES ({placeholders})"
+
+            for row in transformed_rows:
+                self.cursor.execute(insert_query, row)
+
+            self.conn.commit()
+            self.logger.info(
+                f"Successfully moved {len(rows)} rows from '{staging_table}' to '{dwh_table}'."
+            )
+
+            # Optionally delete rows from the staging table
+            if delete_from_staging:
+                delete_query = f"DELETE FROM {staging_table}"
+                self.cursor.execute(delete_query)
+                self.conn.commit()
+                self.logger.info(f"Staging table '{staging_table}' cleared after moving data.")
+            else:
+                self.logger.info(f"Data retained in staging table '{staging_table}' after moving to DWH.")
+
         except Exception as e:
-            print(f"❌ Error while clearing data in table '{table_name}': {e}")
-            db_instance.conn.rollback()
+            self.conn.rollback()
+            self.logger.error(f"Error moving data from '{staging_table}' to '{dwh_table}': {e}")
+            raise DatabaseError(f"Failed to move data to DWH: {e}")

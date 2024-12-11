@@ -1,6 +1,6 @@
+import os
 from flask import Flask, render_template, request, jsonify, g
-from oculus import Willhaben, Database
-from oculus.tasks import fetch_cars_task
+from oculus import Willhaben, Database, fetch_cars_task, move_data_to_dwh_task
 from rich import print
 from celery.result import AsyncResult
 
@@ -133,6 +133,56 @@ def task_status(task_id):
 
     except Exception as e:
         print(f"[red]Error retrieving task status: {e}[/red]")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/load_car_data', methods=['GET'])
+def load_car_data():
+    """
+    Route zum Laden der Daten aus einer JSON-File in die Tabellen `makes` und `models`.
+    """
+    try:
+        # Basisverzeichnis für die JSON-Dateien
+        base_path = os.path.join(os.getcwd(), 'oculus', 'data')
+
+        # Datei-Pfad aus den Query-Parametern lesen und Pfad zusammensetzen
+        filename = request.args.get('file_path', 'car_data.json')
+        file_path = os.path.join(base_path, filename)
+
+        # Prüfen, ob die Datei existiert
+        if not os.path.isfile(file_path):
+            return jsonify({"status": "error", "message": f"Datei {file_path} wurde nicht gefunden."}), 400
+
+        # Datenbank-Instanz
+        db = Database()
+        db.connect()
+
+        # Daten laden
+        db.load_car_data(file_path)
+        db.close()
+
+        return jsonify({"status": "success", "message": f"Daten erfolgreich aus {file_path} geladen."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/move_data_to_dwh", methods=["POST"])
+def move_data_to_dwh():
+    """
+    Triggers a Celery task to move data from staging to the Data Warehouse.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"status": "error", "message": "Invalid JSON payload."}), 400
+
+        delete_from_staging = data.get("delete_from_staging", False)
+
+        task = move_data_to_dwh_task.apply_async(args=[delete_from_staging])
+        return jsonify({"status": "success", "task_id": task.id})
+
+    except Exception as e:
+        print(f"[red]Error triggering move_data_to_dwh_task: {e}[/red]")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

@@ -152,3 +152,34 @@ def periodic_fetch_task(self, periode=48, rows=200):
         db.close()
         end_time = datetime.now()
         celery_logger.info(f"Task {task_id} ended at {end_time}. Duration: {end_time - start_time}")
+
+@celery.task(bind=True, max_retries=3, default_retry_delay=60)
+def move_data_to_dwh_task(self, delete_from_staging=False):
+    """
+    Celery task to move data from staging to the Data Warehouse.
+
+    Args:
+        delete_from_staging (bool): Whether to delete data from the staging table after moving.
+    """
+    db = Database()
+    task_id = self.request.id
+
+    try:
+        celery_logger.info(f"Task {task_id}: Starting to move data to Data Warehouse. Delete from staging: {delete_from_staging}")
+
+        # Verbindung zur Datenbank
+        db.connect()
+
+        # Daten verschieben
+        rows_moved = db.move_data_to_dwh(delete_from_staging=delete_from_staging)
+
+        celery_logger.info(f"Task {task_id}: Successfully moved {rows_moved} rows to Data Warehouse.")
+        return {"status": "success", "message": f"Moved {rows_moved} rows to Data Warehouse."}
+
+    except Exception as e:
+        celery_logger.error(f"Task {task_id} failed: {e}")
+        self.update_state(state="FAILURE", meta={"error": str(e)})
+        raise
+
+    finally:
+        db.close()
