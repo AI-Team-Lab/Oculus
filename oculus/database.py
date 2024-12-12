@@ -14,15 +14,39 @@ class DatabaseError(Exception):
 
 class Database:
     def __init__(self):
+        self.logger = logging.getLogger("Database")
+        self.logger.propagate = False
+        self.conn = None
+        self.cursor = None
+
+        # Load environment variables
+        self._load_env_file()
+
+        # Assign environment variables
         self.host = os.getenv("DB_HOST")
         self.port = os.getenv("DB_PORT")
         self.user = os.getenv("DB_USER")
         self.password = os.getenv("DB_PASSWORD")
         self.database = os.getenv("DB_DATABASE")
-        self.logger = logging.getLogger("Database")
-        self.logger.propagate = False
-        self.conn = None
-        self.cursor = None
+
+    def _load_env_file(self):
+        """
+        Loads the .env file and logs if it is missing or fails to load.
+
+        Raises:
+            FileNotFoundError: If the .env file is not found.
+        """
+        env_file = ".env"
+        if not os.path.exists(env_file):
+            self.logger.error(f"Environment file '{env_file}' not found.")
+            raise FileNotFoundError(f"Environment file '{env_file}' not found.")
+
+        try:
+            load_dotenv(env_file)
+            self.logger.info(f"Environment file '{env_file}' loaded successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to load environment file '{env_file}': {e}")
+            raise
 
     def connect(self):
         """
@@ -37,8 +61,17 @@ class Database:
             Exception: If the connection to the database fails.
         """
         if self.conn:
-            database_logger.info("Database connection is already established.")
+            self.logger.info("Database connection is already established.")
             return
+
+        # Check for missing critical environment variables
+        missing_vars = [
+            var for var in ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_DATABASE"]
+            if not os.getenv(var)
+        ]
+        if missing_vars:
+            self.logger.error(f"Missing critical environment variables: {', '.join(missing_vars)}")
+            raise EnvironmentError(f"Missing critical environment variables: {', '.join(missing_vars)}")
 
         try:
             self.conn = pymssql.connect(
@@ -49,9 +82,9 @@ class Database:
                 charset="utf8",
             )
             self.cursor = self.conn.cursor()
-            database_logger.info("Successfully established a connection to the database.")
+            self.logger.info("Successfully established a connection to the database.")
         except Exception as e:
-            database_logger.error(f"Failed to establish database connection: {e}")
+            self.logger.error(f"Failed to establish database connection: {e}")
             raise
 
     def close(self):
