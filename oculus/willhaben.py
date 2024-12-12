@@ -5,8 +5,9 @@ import json
 import random
 import time
 import re
-from rich import print
+import logging
 from oculus.database import DatabaseError
+from oculus.logging import willhaben_logger
 
 # List of user agents
 user_agents = [
@@ -18,30 +19,33 @@ user_agents = [
 
 class Willhaben:
     """
-    This class provides an interface for interacting with the Willhaben car search API.
-    It allows fetching car-related data and performing advanced search queries based on various filters.
+    Provides an interface for interacting with the Willhaben car search API.
+    This class supports fetching car data and executing advanced queries with various filters.
     """
 
     def __init__(self, base_url: str = "https://www.willhaben.at", data_files: dict = None):
         """
-        Initializes the WillHaben class with the base URL and data files.
+        Initializes the Willhaben class with a base URL and paths to metadata files.
 
         Args:
             base_url (str): The base URL of the Willhaben API.
-            data_files (dict): A dictionary of file paths for loading car-related metadata.
+            data_files (dict): Dictionary containing file paths for car metadata.
         """
         self.base_url = base_url
         self.search_url = self.base_url + "/webapi/iad/search/atz/seo/gebrauchtwagen/auto/gebrauchtwagenboerse"
 
-        # Default headers
+        # Initialize logger
+        self.logger = logging.getLogger("Database")
+
+        # Default headers for API requests
         self.headers = {
             "Language": "de-DE,de;q=0.9",
             "accept": "application/json",
             "X-Wh-Client": "api@willhaben.at;responsive_web;server;1.0.0;desktop",
-            "User-Agent": random.choice(user_agents)  # Choose a random user agent
+            "User-Agent": random.choice(user_agents)  # Randomly select a user agent
         }
 
-        # Load car metadata from JSON files
+        # Set file paths for car metadata
         self.data_files = data_files if data_files else {
             "car_data": "oculus/data/car_data.json",
             "car_status": "oculus/data/car_status.json",
@@ -50,18 +54,21 @@ class Willhaben:
             "car_location": "oculus/data/car_location.json"
         }
 
-        # Load car metadata
+        self.logger.info("Initializing Willhaben instance.")
+
+        # Load car metadata from JSON files
         self.car_data = self.load_data(self.data_files["car_data"])
         self.car_status = self.load_data(self.data_files["car_status"])
         self.car_engine = self.load_data(self.data_files["car_engine"])
         self.car_equipment = self.load_data(self.data_files["car_equipment"])
         self.car_location = self.load_data(self.data_files["car_location"])
 
-        # Initialize an HTTPX client with HTTP/2 support
+        # Initialize HTTP client with HTTP/2 support
         self.client = httpx.Client(http2=True, headers=self.headers)
+        willhaben_logger.info("Willhaben instance initialized successfully.")
 
     @staticmethod
-    def load_data(file_path: str):
+    def load_data(file_path: str) -> dict:
         """
         Loads JSON data from the specified file path.
 
@@ -69,162 +76,190 @@ class Willhaben:
             file_path (str): The path to the JSON file.
 
         Returns:
-            dict: The loaded JSON data or an empty dictionary if loading fails.
+            dict: Parsed JSON data as a dictionary. Returns an empty dictionary if the file is not found or cannot be parsed.
         """
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+            with open(file_path, "r", encoding="utf-8") as file:
+                data = json.load(file)
+                willhaben_logger.info(f"Successfully loaded data from '{file_path}'.")
+                return data
         except FileNotFoundError:
-            print(f"Error: File '{file_path}' not found.")
+            willhaben_logger.error(f"File '{file_path}' not found.")
             return {}
         except json.JSONDecodeError as e:
-            print(f"Error: Error during JSON decoding: {e}")
+            willhaben_logger.error(f"Failed to decode JSON from file '{file_path}': {e}")
+            return {}
+        except Exception as e:
+            willhaben_logger.error(f"Unexpected error while loading JSON from '{file_path}': {e}")
             return {}
 
-    def get_response(self, url: str, params: dict = None, retries: int = 3, delay: int = 30):
+    def get_response(self, url: str, params: dict = None, retries: int = 3, delay: int = 30) -> dict:
         """
         Sends a GET request to the specified URL with optional parameters.
-        Handles retries in case of errors and checks for IP blocking.
+        Handles retries in case of errors and checks for potential IP blocking.
 
         Args:
             url (str): The endpoint to send the request to.
-            params (dict): Optional query parameters for the request.
+            params (dict): Optional query parameters for the request. Defaults to None.
             retries (int): Number of retry attempts in case of failure. Default is 3.
             delay (int): Delay in seconds between retry attempts. Default is 30.
 
         Returns:
-            dict: The JSON response from the API or None if an error occurs.
+            dict: The JSON response from the API, or None if the request fails after all retries.
         """
         block_message = "Your IP address is blocked"
 
+        # Logger setup
+        willhaben_logger.info(f"Starting GET request to URL: {url} with params: {params}")
+
         for attempt in range(1, retries + 1):
             try:
+                # Send the GET request
                 response = self.client.get(url, params=params)
                 response.raise_for_status()
 
-                # Check for block message in the response content
+                # Check if the response contains an IP block message
                 if block_message in response.text:
-                    print(f"[red]IP blocked detected on attempt {attempt}: {url}[/red]")
+                    willhaben_logger.error(f"Attempt {attempt}: IP block detected for URL: {url}")
                     raise Exception("IP address is blocked.")
 
-                # Log success and return JSON
-                print(f"[green]Request succeeded on attempt {attempt} for URL: {url}[/green]")
+                # Log success and return JSON response
+                willhaben_logger.info(f"Attempt {attempt}: Request successful for URL: {url}")
                 return response.json()
 
             except httpx.HTTPStatusError as http_err:
-                print(
-                    f"[red]HTTP Error on attempt {attempt}: {http_err.response.status_code} - {http_err.response.text}[/red]")
+                willhaben_logger.error(
+                    f"HTTP error on attempt {attempt}: {http_err.response.status_code} - {http_err.response.text}"
+                )
             except Exception as e:
-                print(f"[red]Unexpected error on attempt {attempt}: {e}[/red]")
+                willhaben_logger.error(f"Unexpected error on attempt {attempt}: {e}")
 
-            # Wait before retrying
+            # Retry logic
             if attempt < retries:
-                print(f"[yellow]Retrying in {delay} seconds...[/yellow]")
+                willhaben_logger.warning(f"Retrying in {delay} seconds (attempt {attempt} of {retries})...")
                 time.sleep(delay)
 
         # Final failure
-        print("[red]All retry attempts failed. Request could not be completed.[/red]")
+        willhaben_logger.error(f"All {retries} retry attempts failed for URL: {url}")
         return None
 
-    def search_car(self, keyword: str = None, page: int = 1, rows: int = 30, sort: int = 1,
-                   car_model_make: str = None, car_model_model: str = None, price_from: int = None,
-                   price_to: int = None, mileage_from: int = None, mileage_to: int = None, year_model_from: int = None,
-                   year_model_to: int = None, car_type: str = None, motor_condition: str = None, warranty: str = None,
-                   engine_effect_from: str = None, engine_effect_to: str = None, engine_fuel: str = None,
-                   battery_capacity_from: str = None, battery_capacity_to: str = None, wltp_range_from: str = None,
-                   wltp_range_to: str = None, transmission: str = None, wheel_drive: str = None, equipment: list = None,
-                   exterior_colour_main: str = None, no_of_doors_from: str = None, no_of_doors_to: str = None,
-                   no_of_seats_from: str = None, no_of_seats_to: str = None, area_id: str = None, dealer: str = None,
-                   periode: int = None):
+    def search_car(
+            self,
+            keyword: str = None,
+            page: int = 1,
+            rows: int = 30,
+            sort: int = 1,
+            car_model_make: str = None,
+            car_model_model: str = None,
+            price_from: int = None,
+            price_to: int = None,
+            mileage_from: int = None,
+            mileage_to: int = None,
+            year_model_from: int = None,
+            year_model_to: int = None,
+            car_type: str = None,
+            motor_condition: str = None,
+            warranty: str = None,
+            engine_effect_from: str = None,
+            engine_effect_to: str = None,
+            engine_fuel: str = None,
+            battery_capacity_from: str = None,
+            battery_capacity_to: str = None,
+            wltp_range_from: str = None,
+            wltp_range_to: str = None,
+            transmission: str = None,
+            wheel_drive: str = None,
+            equipment: list = None,
+            exterior_colour_main: str = None,
+            no_of_doors_from: str = None,
+            no_of_doors_to: str = None,
+            no_of_seats_from: str = None,
+            no_of_seats_to: str = None,
+            area_id: str = None,
+            dealer: str = None,
+            periode: int = None,
+    ) -> dict:
         """
-                Performs a car search query on the Willhaben API based on various filters.
+        Performs a car search query on the Willhaben API using a wide range of filters.
 
-                Keyword Args:
-                    keyword (str): Search keyword.
-                    page (int): Page number for pagination.
-                    rows (int): Number of results per page.
-                    sort (int): Sorting preference.
-                    car_model_make (list | str): Car make (e.g., BMW, Audi).
-                    car_model_model (str): Car model.
-                    price_from (int): Minimum price.
-                    price_to (int): Maximum price.
-                    mileage_from (int): Minimum mileage.
-                    mileage_to (int): Maximum mileage.
-                    year_model_from (int): Minimum model year.
-                    year_model_to (int): Maximum model year.
-                    car_type (str): Car type (e.g., SUV, sedan).
-                    motor_condition (str): Motor condition (e.g., new, used).
-                    warranty (str): Warranty information.
-                    engine_effect_from (str): Minimum engine power.
-                    engine_effect_to (str): Maximum engine power.
-                    engine_fuel (str): Type of fuel (e.g., petrol, diesel).
-                    battery_capacity_from (str): Minimum battery capacity.
-                    battery_capacity_to (str): Maximum battery capacity.
-                    wltp_range_from (str): Minimum range (for electric cars).
-                    wltp_range_to (str): Maximum range (for electric cars).
-                    transmission (str): Transmission type (e.g., automatic, manual).
-                    wheel_drive (str): Drive type (e.g., AWD, FWD).
-                    equipment (list): List of equipment features.
-                    exterior_colour_main (str): Main exterior color.
-                    no_of_doors_from (str): Minimum number of doors.
-                    no_of_doors_to (str): Maximum number of doors.
-                    no_of_seats_from (str): Minimum number of seats.
-                    no_of_seats_to (str): Maximum number of seats.
-                    area_id (str): Location area ID.
-                    dealer (str): Dealer information.
-                    periode (int): Period in hours (e.g., 24, 28).
+        Args:
+            keyword (str): Search keyword.
+            page (int): Page number for pagination.
+            rows (int): Number of results per page.
+            sort (int): Sorting preference.
+            car_model_make (str): Car make (e.g., BMW, Audi).
+            car_model_model (str): Car model.
+            price_from (int): Minimum price.
+            price_to (int): Maximum price.
+            mileage_from (int): Minimum mileage.
+            mileage_to (int): Maximum mileage.
+            year_model_from (int): Minimum model year.
+            year_model_to (int): Maximum model year.
+            car_type (str): Car type (e.g., SUV, sedan).
+            motor_condition (str): Motor condition (e.g., new, used).
+            warranty (str): Warranty information.
+            engine_effect_from (str): Minimum engine power.
+            engine_effect_to (str): Maximum engine power.
+            engine_fuel (str): Fuel type (e.g., petrol, diesel).
+            battery_capacity_from (str): Minimum battery capacity.
+            battery_capacity_to (str): Maximum battery capacity.
+            wltp_range_from (str): Minimum range for electric cars.
+            wltp_range_to (str): Maximum range for electric cars.
+            transmission (str): Transmission type (e.g., automatic, manual).
+            wheel_drive (str): Drive type (e.g., AWD, FWD).
+            equipment (list): List of equipment features.
+            exterior_colour_main (str): Main exterior color.
+            no_of_doors_from (str): Minimum number of doors.
+            no_of_doors_to (str): Maximum number of doors.
+            no_of_seats_from (str): Minimum number of seats.
+            no_of_seats_to (str): Maximum number of seats.
+            area_id (str): Location area ID.
+            dealer (str): Dealer type.
+            periode (int): Time period for search results in hours.
 
-                Returns:
-                    dict: The search results or None if no cars are found.
+        Returns:
+            dict: The search results from the Willhaben API, or None if the query fails.
         """
-        car_model_make_id = self.car_data.get(car_model_make.lower(), {}).get("id") if car_model_make else None
-        car_model_model_id = self.car_data.get(car_model_make.lower(), {}).get("models", {}).get(
-            car_model_model) if car_model_make and car_model_model else None
-        car_type_id = self.car_status["car_type"].get(car_type) if car_type in self.car_status["car_type"] else None
-        motor_condition_id = self.car_status["motor_condition"].get(motor_condition) if motor_condition in \
-                                                                                        self.car_status[
-                                                                                            "motor_condition"] else None
-        warranty_id = self.car_status["warranty"].get(warranty) if warranty in self.car_status["warranty"] else None
-        engine_effect_from_id = self.car_engine["engineeffect_from"].get(
-            engine_effect_from) if engine_effect_from else None
-        engine_effect_to_id = self.car_engine["engineeffect_to"].get(
-            engine_effect_to) if engine_effect_to else None
-        engine_fuel_id = self.car_engine["engine_fuel"].get(engine_fuel) if engine_fuel in self.car_engine[
-            "engine_fuel"] else None
-        battery_capacity_from_id = self.car_engine["battery_capacity_from"].get(
-            battery_capacity_from) if battery_capacity_from else None
-        battery_capacity_to_id = self.car_engine["battery_capacity_to"].get(
-            battery_capacity_to) if battery_capacity_to else None
-        wltp_range_from_id = self.car_engine["wltp_range_from"].get(wltp_range_from) if wltp_range_from else None
-        wltp_range_to_id = self.car_engine["wltp_range_to"].get(wltp_range_to) if wltp_range_to else None
-        transmission_id = self.car_engine["transmission"].get(transmission) if transmission in self.car_engine[
-            "transmission"] else None
-        wheel_drive_id = self.car_engine["wheel_drive"].get(wheel_drive) if wheel_drive in self.car_engine[
-            "wheel_drive"] else None
+        # Translate filters into API-compatible IDs
+        car_model_make_id = (
+            self.car_data.get(car_model_make.lower(), {}).get("id") if car_model_make else None
+        )
+        car_model_model_id = (
+            self.car_data.get(car_model_make.lower(), {})
+            .get("models", {})
+            .get(car_model_model)
+            if car_model_make and car_model_model
+            else None
+        )
+        car_type_id = self.car_status["car_type"].get(car_type)
+        motor_condition_id = self.car_status["motor_condition"].get(motor_condition)
+        warranty_id = self.car_status["warranty"].get(warranty)
+        engine_effect_from_id = self.car_engine["engineeffect_from"].get(engine_effect_from)
+        engine_effect_to_id = self.car_engine["engineeffect_to"].get(engine_effect_to)
+        engine_fuel_id = self.car_engine["engine_fuel"].get(engine_fuel)
+        battery_capacity_from_id = self.car_engine["battery_capacity_from"].get(battery_capacity_from)
+        battery_capacity_to_id = self.car_engine["battery_capacity_to"].get(battery_capacity_to)
+        wltp_range_from_id = self.car_engine["wltp_range_from"].get(wltp_range_from)
+        wltp_range_to_id = self.car_engine["wltp_range_to"].get(wltp_range_to)
+        transmission_id = self.car_engine["transmission"].get(transmission)
+        wheel_drive_id = self.car_engine["wheel_drive"].get(wheel_drive)
+        equipment_id = (
+            ";".join(
+                str(self.car_equipment["equipment"].get(eq))
+                for eq in equipment
+                if eq in self.car_equipment["equipment"]
+            )
+            if equipment
+            else None
+        )
+        exterior_colour_main_id = self.car_equipment["exterior_colour_main"].get(exterior_colour_main)
+        no_of_doors_from_id = self.car_equipment["no_of_doors_from"].get(no_of_doors_from)
+        no_of_doors_to_id = self.car_equipment["no_of_doors_to"].get(no_of_doors_to)
+        no_of_seats_from_id = self.car_equipment["no_of_seats_from"].get(no_of_seats_from)
+        no_of_seats_to_id = self.car_equipment["no_of_seats_to"].get(no_of_seats_to)
 
-        equipment_id = ";".join(
-            str(self.car_equipment["equipment"].get(eq))
-            for eq in car_type
-            if eq in self.car_equipment["equipment"]
-        ) if equipment else None
-
-        exterior_colour_main_id = self.car_equipment["exterior_colour_main"].get(
-            exterior_colour_main) if exterior_colour_main in self.car_equipment[
-            "exterior_colour_main"] else None
-        no_of_doors_from_id = self.car_equipment["no_of_doors_from"].get(no_of_doors_from) if no_of_doors_from in \
-                                                                                              self.car_equipment[
-                                                                                                  "no_of_doors_from"] else None
-        no_of_doors_to_id = self.car_equipment["no_of_doors_to"].get(no_of_doors_to) if no_of_doors_to in \
-                                                                                        self.car_equipment[
-                                                                                            "no_of_doors_to"] else None
-        no_of_seats_from_id = self.car_equipment["no_of_seats_from"].get(no_of_seats_from) if no_of_seats_from in \
-                                                                                              self.car_equipment[
-                                                                                                  "no_of_seats_from"] else None
-        no_of_seats_to_id = self.car_equipment["no_of_seats_to"].get(no_of_seats_to) if no_of_seats_to in \
-                                                                                        self.car_equipment[
-                                                                                            "no_of_seats_to"] else None
-
+        # Handle location area ID
         if area_id:
             region = self.car_location["locations"].get(area_id)
             if region:
@@ -235,9 +270,10 @@ class Willhaben:
                         area_id = state_data["areas"][area_id]
                         break
 
-        dealer_id = self.car_location["dealer"].get(dealer) if dealer in self.car_location["dealer"] else None
-        periode_id = self.car_location["periode"].get(periode) if periode in self.car_location["periode"] else None
+        dealer_id = self.car_location["dealer"].get(dealer)
+        periode_id = self.car_location["periode"].get(periode)
 
+        # Assemble API parameters
         params = {
             "keyword": keyword,
             "page": page,
@@ -271,12 +307,13 @@ class Willhaben:
             "NO_OF_SEATS_TO": no_of_seats_to_id,
             "areaId": area_id,
             "DEALER": dealer_id,
-            "periode": periode_id
+            "periode": periode_id,
         }
+
         # Remove None values
         params = {key: value for key, value in params.items() if value is not None}
 
-        # Request the API
+        # Make the API request
         response = self.get_response(self.search_url, params)
         return response
 
@@ -287,40 +324,59 @@ class Willhaben:
         and truncates it to a specified maximum length.
 
         Args:
-            value (str): The string to clean and truncate.
-            max_length (int): The maximum allowed length for the string.
-            default (str): The default value to return if the input is None or invalid.
+            value (str): The string to clean and truncate. If None or invalid, the default value is returned.
+            max_length (int, optional): The maximum allowed length for the string. If None, no truncation is applied.
+            default (str): The default value to return if the input is None or invalid. Default is "N/A".
 
         Returns:
             str: The cleaned and truncated string.
         """
-        if not value or value == "N/A":
+        try:
+            if not value or value == "N/A":
+                return default
+
+            # Replace non-breaking spaces and clean up the string
+            cleaned_value = re.sub(
+                r"\s+", " ", str(value).replace("\u00a0", " ").replace("\ufeff", " ").strip()
+            )
+
+            # Truncate if max_length is specified
+            if max_length is not None:
+                return cleaned_value[:max_length]
+
+            return cleaned_value
+        except Exception as e:
+            willhaben_logger.error(f"Error cleaning and truncating value '{value}': {e}")
             return default
-        cleaned_value = re.sub(r"\s+", " ", str(value).replace("\u00a0", " ").replace("\ufeff", " ").strip())
-        if max_length is not None:
-            return cleaned_value[:max_length]
-        return cleaned_value
 
     @staticmethod
     def split_and_clean(value, delimiter=";", default=None, max_length=None):
         """
-        Splits a string by a delimiter and cleans each part.
+        Splits a string by a specified delimiter, cleans each part, and optionally truncates each part.
 
         Args:
-            value (str): The string to split.
-            delimiter (str): The delimiter to split by.
-            default (list): The default value to return if the input is invalid.
-            max_length (int): The maximum allowed length for each split part.
+            value (str): The string to split and clean. If None or invalid, the default value is returned.
+            delimiter (str): The delimiter to split the string. Default is ";".
+            default (list, optional): The default value to return if the input is invalid. Default is an empty list.
+            max_length (int, optional): The maximum allowed length for each split part. If None, no truncation is applied.
 
         Returns:
-            list: A list of cleaned strings.
+            list: A list of cleaned and optionally truncated strings.
         """
-        if not value or value == "N/A":
+        try:
+            if not value or value == "N/A":
+                return default or []
+
+            # Split the string and clean each part using `clean_and_truncate`
+            cleaned_parts = [
+                Willhaben.clean_and_truncate(part, max_length=max_length)
+                for part in value.split(delimiter)
+            ]
+
+            return cleaned_parts
+        except Exception as e:
+            willhaben_logger.error(f"Error splitting and cleaning value '{value}': {e}")
             return default or []
-        # Use the `clean_and_truncate` method correctly
-        return [
-            Willhaben.clean_and_truncate(part, max_length=max_length) for part in value.split(delimiter)
-        ]
 
     @staticmethod
     def extract_car_info(car):
@@ -404,7 +460,7 @@ class Willhaben:
                 "all_image_urls": all_image_urls,
             }
         except Exception as e:
-            print(f"[red]Error extracting car info: {e}[/red]")
+            willhaben_logger.error(f"Error extracting car info: {e}")
             return {}
 
     @staticmethod
@@ -424,7 +480,7 @@ class Willhaben:
         """
         # Überprüfen, ob Daten vorhanden sind
         if not data:
-            print(f"⚠️ No data to save for make '{current_make}' on page {current_page}'.")
+            willhaben_logger.warning(f"No data to save for make '{current_make}' on page {current_page}'.")
             return
 
         # Speicherung in CSV
@@ -445,12 +501,12 @@ class Willhaben:
                     for row in data:
                         writer.writerow(row.values())
 
-                print(
-                    f"✅ Data successfully saved to CSV: '{filename}' for make '{current_make}' on page {current_page}.")
+                willhaben_logger.info(
+                    f"Data successfully saved to CSV: '{filename}' for make '{current_make}' on page {current_page}.")
             except PermissionError as e:
-                print(f"❌ Permission error: Unable to write to '{filename}'. Details: {e}")
+                willhaben_logger.error(f"Permission error: Unable to write to '{filename}'. Details: {e}")
             except Exception as e:
-                print(f"❌ Unexpected error while saving to CSV: {e}")
+                willhaben_logger.error(f"Unexpected error while saving to CSV: {e}")
 
         # Speicherung in die Datenbank
         elif save_type == "db":
@@ -460,12 +516,12 @@ class Willhaben:
                 # Daten in die Datenbank schreiben
                 db_instance.insert_data(table_name, data, current_make=current_make, current_page=current_page)
 
-                print(
-                    f"✅ Data successfully saved to table '{table_name}' for make '{current_make}' on page {current_page}.")
+                willhaben_logger.info(
+                    f"Data successfully saved to table '{table_name}' for make '{current_make}' on page {current_page}.")
             except DatabaseError as e:
-                print(f"❌ Database error while saving data: {e}")
+                willhaben_logger.error(f"Database error while saving data: {e}")
             except Exception as e:
-                print(f"❌ Unexpected error while saving to database: {e}")
+                willhaben_logger.error(f"Unexpected error while saving to database: {e}")
 
         # Ungültiger Speicher-Typ
         else:
@@ -485,10 +541,10 @@ class Willhaben:
             dict: Summary of the processing.
         """
         if car_model_make is None:
-            print("[blue]Processing all car makes...[/blue]")
+            willhaben_logger.info("Processing all car makes...")
             results = []
             for make in self.car_data.keys():
-                print(f"[green]Processing car make: {make}[/green]")
+                willhaben_logger.info(f"Processing car make: {make}")
                 result = self.process_cars(
                     car_model_make=make,
                     save_type=save_type,
@@ -499,11 +555,11 @@ class Willhaben:
             return {"status": "success", "message": "Processed all car makes.", "results": results}
 
         if car_model_make.lower() not in self.car_data:
-            error_message = f"[red]Error: No data found for CAR_MODEL/MAKE '{car_model_make}'.[/red]"
-            print(error_message)
+            error_message = f"Error: No data found for CAR_MODEL/MAKE '{car_model_make}'."
+            willhaben_logger.error(error_message)
             return {"status": "error", "message": error_message}
 
-        print(f"[blue]Processing cars for CAR_MODEL/MAKE: {car_model_make}[/blue]")
+        willhaben_logger.info(f"Processing cars for CAR_MODEL/MAKE: {car_model_make}")
         directory = "csv_exports"
         os.makedirs(directory, exist_ok=True)
 
@@ -520,7 +576,7 @@ class Willhaben:
                         writer = csv.writer(file)
                         writer.writerow(sample_headers)
             except Exception as e:
-                print(f"[red]Error initializing CSV: {e}[/red]")
+                willhaben_logger.error(f"Error initializing CSV: {e}")
                 return {"status": "error", "message": str(e)}
 
         page = 1
@@ -528,10 +584,11 @@ class Willhaben:
             time.sleep(10)
             result = self.search_car(car_model_make=car_model_make, page=page, rows=200)
             if not result or result.get("rowsReturned") == 0:
-                print(f"[yellow]No more vehicles found for CAR_MODEL/MAKE {car_model_make}.[/yellow]")
+                willhaben_logger.info(f"No more vehicles found for CAR_MODEL/MAKE {car_model_make}.")
                 break
 
-            print(f"[green]Processing {result.get('rowsReturned', 0)} vehicles on page {page}...[/green]")
+            willhaben_logger.info(
+                f"Processing {result.get('rowsReturned', 0)} vehicles on page {page}...")
 
             car_data = [self.extract_car_info(car) for car in
                         result.get("advertSummaryList", {}).get("advertSummary", [])]
@@ -547,7 +604,7 @@ class Willhaben:
                     current_page=page
                 )
             except Exception as e:
-                print(f"[red]Error saving data: {e}[/red]")
+                willhaben_logger.error(f"Error saving data: {e}")
                 return {"status": "error", "message": str(e)}
 
             page += 1
