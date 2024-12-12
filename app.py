@@ -232,21 +232,15 @@ def load_json():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route("/move_data_to_dwh", methods=["POST"])
+@app.route("/move_data_to_dwh", methods=["GET"])
 def move_data_to_dwh():
     """
     Triggers a Celery task to move data from staging to the Data Warehouse.
     """
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"status": "error", "message": "Invalid JSON payload."}), 400
-
-        delete_from_staging = data.get("delete_from_staging", False)
-
+        delete_from_staging = request.args.get("delete_from_staging", "false").lower() == "true"
         task = move_data_to_dwh_task.apply_async(args=[delete_from_staging])
         return jsonify({"status": "success", "task_id": task.id})
-
     except Exception as e:
         flask_logger.error(f"Error triggering move_data_to_dwh_task: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500

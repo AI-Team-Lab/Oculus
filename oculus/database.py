@@ -3,6 +3,7 @@ import pymssql
 import logging
 from oculus.logging import database_logger
 from dotenv import load_dotenv
+from datetime import datetime
 import json
 
 load_dotenv()
@@ -585,78 +586,229 @@ class Database:
             self.logger.error(f"Failed to load car status data from {file_path}: {e}")
             raise DatabaseError(f"Failed to load car status data: {e}")
 
-    def move_data_to_dwh(self, staging_table, dwh_table, transformations=None, delete_from_staging=False):
+    def move_reference_data(self, source_table, target_table, source_columns, target_columns, transformations=None):
         """
-        Moves data from the staging table to the data warehouse table, applying transformations if needed.
+        Copies and transforms reference data from a source table to a target table.
 
         Args:
-            staging_table (str): The name of the staging table.
-            dwh_table (str): The name of the DWH table.
-            transformations (dict): Optional. A dictionary specifying column transformations.
-                                    Key: column name in staging.
-                                    Value: a function to transform the column value.
-            delete_from_staging (bool): Whether to delete rows from the staging table after insertion. Default is False.
+            source_table (str): Name of the source table (e.g., "dl.model").
+            target_table (str): Name of the target table (e.g., "dwh.model").
+            source_columns (list): Column names in the source table (e.g., ["model_id", "model_name", "make_id"]).
+            target_columns (list): Column names in the target table (e.g., ["id", "model_name", "make_id"]).
+            transformations (dict): Transformations for specific columns
+                                    (e.g., {"model_id": lambda x: x + 1, "model_name": lambda x: x.upper()}).
         """
         self.ensure_connection()
+
         try:
-            # Fetch data from the staging table
-            select_query = f"SELECT * FROM {staging_table}"
-            self.cursor.execute(select_query)
+            self.logger.info(f"Starting data transfer from {source_table} to {target_table}")
+
+            # Extract data from the source table
+            query = f"SELECT DISTINCT {', '.join(source_columns)} FROM {source_table}"
+            self.cursor.execute(query)
             rows = self.cursor.fetchall()
+            self.logger.info(f"Fetched {len(rows)} rows from {source_table}")
 
-            if not rows:
-                self.logger.info(f"No data found in the staging table '{staging_table}'. Nothing to move.")
-                return
+            # Transform and insert data into the target table
+            for row in rows:
+                row_dict = dict(zip(source_columns, row))
 
-            # Apply transformations if specified
-            transformed_rows = []
-            try:
-                for row in rows:
-                    transformed_row = list(row)
-                    if transformations:
-                        for column, transform_func in transformations.items():
-                            # Find the column index
-                            col_index = [desc[0] for desc in self.cursor.description].index(column)
-                            # Apply transformation
-                            transformed_row[col_index] = transform_func(row[col_index])
-                    transformed_rows.append(transformed_row)
-            except Exception as e:
-                self.logger.error(f"Error during transformations: {e}")
-                raise DatabaseError(f"Failed to apply transformations: {e}")
+                # Apply transformations if defined
+                if transformations:
+                    for column, transform_func in transformations.items():
+                        if column in row_dict and transform_func:
+                            original_value = row_dict[column]
+                            row_dict[column] = transform_func(row_dict[column])
+                            self.logger.debug(
+                                f"Transformed {column}: {original_value} -> {row_dict[column]}"
+                            )
 
-            # Insert data into the DWH table
-            columns = [desc[0] for desc in self.cursor.description]
-            placeholders = ", ".join(["%s"] * len(columns))
-            insert_query = f"INSERT INTO {dwh_table} ({', '.join(columns)}) VALUES ({placeholders})"
+                # Map source column values to target columns
+                target_row = {target_columns[i]: row_dict[col] for i, col in enumerate(source_columns)}
 
-            try:
-                for row in transformed_rows:
-                    self.cursor.execute(insert_query, row)
+                # Check if the entry already exists in the target table
+                lookup_query = f"SELECT 1 FROM {target_table} WHERE {target_columns[0]} = %s"
+                self.cursor.execute(lookup_query, (target_row[target_columns[0]],))
+                result = self.cursor.fetchone()
 
-                self.conn.commit()
-                self.logger.info(
-                    f"Successfully moved {len(rows)} rows from '{staging_table}' to '{dwh_table}'."
-                )
-            except Exception as e:
-                self.conn.rollback()
-                self.logger.error(f"Failed to insert data into DWH table '{dwh_table}': {e}")
-                raise DatabaseError(f"Failed to insert data into DWH: {e}")
+                if not result:
+                    # Insert if the entry does not exist
+                    insert_query = f"INSERT INTO {target_table} ({', '.join(target_columns)}) VALUES ({', '.join(['%s'] * len(target_columns))})"
+                    self.cursor.execute(insert_query, tuple(target_row.values()))
+                    self.logger.info(f"Inserted row into {target_table}: {target_row}")
+                else:
+                    self.logger.debug(
+                        f"Row already exists in {target_table}: {target_row[target_columns[0]]}"
+                    )
 
-            # Optionally delete rows from the staging table
+            # Commit changes
+            self.conn.commit()
+            self.logger.info(f"Data transfer from {source_table} to {target_table} completed successfully")
+
+        except Exception as e:
+            # Rollback changes in case of an error
+            self.conn.rollback()
+            self.logger.error(
+                f"Failed to move reference data from {source_table} to {target_table}: {e}"
+            )
+            raise Exception(f"Failed to move reference data from {source_table} to {target_table}: {e}")
+
+    def move_data_to_dwh(self, staging_table, dwh_table, transformations=None, source_id=None,
+                         delete_from_staging=False):
+        """
+        Transforms and moves data from the staging table to the Data Warehouse.
+
+        Args:
+            staging_table (str): Name of the staging table.
+            dwh_table (str): Name of the target Data Warehouse table.
+            transformations (dict): Dictionary of transformations to apply to specific fields.
+            source_id (int): ID representing the source of the data.
+            delete_from_staging (bool): Whether to delete data from the staging table after processing.
+
+        Raises:
+            Exception: If the data transformation or movement process fails.
+        """
+        self.ensure_connection()
+
+        try:
+            # Extract data from the staging table
+            query = f"SELECT * FROM {staging_table}"
+            self.cursor.execute(query)
+            rows = self.cursor.fetchall()
+            columns = [col[0] for col in self.cursor.description]
+
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+
+                # Apply transformations if defined
+                if transformations:
+                    for key, transform_func in transformations.items():
+                        if key in row_dict:
+                            row_dict[key] = transform_func(row_dict[key])
+
+                # Transform data for dwh.willwagen
+                transformed_willwagen = {
+                    "source": source_id or 1,  # Default source ID if not provided
+                    "make_id": self.lookup_or_insert("dwh.make", "make_name", row_dict["make"]),
+                    "model_id": self.lookup_or_insert("dwh.model", "model_name", row_dict["model"]),
+                    "year_model": row_dict["year_model"],
+                    "transmission_id": self.lookup_or_insert("dwh.transmission", "transmission_type",
+                                                             row_dict["transmission"]),
+                    "mileage": row_dict["mileage"],
+                    "noofseats": row_dict["noofseats"],
+                    "power_in_kw": row_dict["engine_effect"],
+                    "engine_fuel_id": self.lookup_or_insert("dwh.fuel", "fuel_type", row_dict["engine_fuel"]),
+                    "car_type_id": self.lookup_or_insert("dwh.car_type", "type_name", row_dict["car_type"]),
+                    "no_of_owners": row_dict["no_of_owners"],
+                    "color_id": self.lookup_or_insert("dwh.color", "color_name", row_dict["color"]),
+                    "condition_id": self.lookup_or_insert("dwh.condition", "condition_name", row_dict["condition"]),
+                    "price": row_dict["price"],
+                    "warranty": row_dict["warranty"] == 1,  # True if 1
+                    "published": self.convert_unix_to_datetime(row_dict["published"]),
+                    "last_updated": self.convert_unix_to_datetime(row_dict["last_updated"]),
+                    "isprivate": row_dict["isprivate"] == 1,  # True if 1
+                }
+
+                # Transform data for dwh.location
+                coordinates = row_dict["coordinates"].split(",") if row_dict["coordinates"] else [None, None]
+                transformed_location = {
+                    "address": row_dict["address"],
+                    "location": row_dict["location"],
+                    "postcode": row_dict["postcode"],
+                    "district": row_dict["district"],
+                    "state": row_dict["state"],
+                    "country": row_dict["country"],
+                    "longitude": coordinates[0],
+                    "latitude": coordinates[1],
+                }
+
+                # Transform data for dwh.specification
+                transformed_specification = {
+                    "willwagen_id": row_dict["id"],
+                    "specification": row_dict["specification"],
+                }
+
+                # Insert transformed data into target tables
+                self.insert_into_table(dwh_table, transformed_willwagen)
+                self.insert_or_update("dwh.location", transformed_location, keys=["address", "location", "postcode"])
+                self.insert_into_table("dwh.specification", transformed_specification)
+
+            # Optionally delete data from the staging table
             if delete_from_staging:
-                try:
-                    delete_query = f"DELETE FROM {staging_table}"
-                    self.cursor.execute(delete_query)
-                    self.conn.commit()
-                    self.logger.info(f"Staging table '{staging_table}' cleared after moving data.")
-                except Exception as e:
-                    self.conn.rollback()
-                    self.logger.error(f"Failed to clear staging table '{staging_table}': {e}")
-                    raise DatabaseError(f"Failed to clear staging table: {e}")
-            else:
-                self.logger.info(f"ℹData retained in staging table '{staging_table}' after moving to DWH.")
+                delete_query = f"DELETE FROM {staging_table}"
+                self.cursor.execute(delete_query)
+
+            # Commit changes
+            self.conn.commit()
 
         except Exception as e:
             self.conn.rollback()
-            self.logger.error(f"Error moving data from '{staging_table}' to '{dwh_table}': {e}")
-            raise DatabaseError(f"Failed to move data to DWH: {e}")
+            raise Exception(f"Failed to move data to DWH: {e}")
+
+    def lookup_or_insert(self, table, column, value):
+        """
+        Look up the ID for a value in a reference table or insert it if not found.
+        """
+        if not value:
+            return None
+        self.cursor.execute(f"SELECT id FROM {table} WHERE {column} = %s", (value,))
+        result = self.cursor.fetchone()
+        if result:
+            return result[0]
+        self.cursor.execute(f"INSERT INTO {table} ({column}) OUTPUT inserted.id VALUES (%s)", (value,))
+        return self.cursor.fetchone()[0]
+
+    def insert_into_table(self, table_name, data):
+        """
+        Inserts data into the specified table.
+
+        Args:
+            table_name (str): The name of the table to insert data into.
+            data (dict): A dictionary where keys are column names and values are the corresponding values.
+
+        Raises:
+            Exception: If the insertion fails.
+        """
+        try:
+            columns = ", ".join(data.keys())
+            placeholders = ", ".join(["%s"] * len(data))
+            values = tuple(data.values())
+
+            query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+            self.cursor.execute(query, values)
+        except Exception as e:
+            raise Exception(f"Failed to insert into {table_name}: {e}")
+
+    def insert_or_update(self, table_name, data, keys):
+        """
+        Inserts data into the specified table or updates it if a conflict occurs.
+
+        Args:
+            table_name (str): The name of the table to insert or update data.
+            data (dict): A dictionary where keys are column names and values are the corresponding values.
+            keys (list): A list of column names to check for conflicts (e.g., primary or unique keys).
+
+        Raises:
+            Exception: If the operation fails.
+        """
+        try:
+            columns = ", ".join(data.keys())
+            placeholders = ", ".join(["%s"] * len(data))
+            updates = ", ".join([f"{col} = EXCLUDED.{col}" for col in data.keys()])
+            values = tuple(data.values())
+
+            conflict_columns = ", ".join(keys)
+            query = (f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders}) "
+                     f"ON CONFLICT ({conflict_columns}) DO UPDATE SET {updates}")
+            self.cursor.execute(query, values)
+        except Exception as e:
+            raise Exception(f"Failed to insert or update in {table_name}: {e}")
+
+    @staticmethod
+    def convert_unix_to_datetime(self, unix_time):
+        """
+        Convert UNIX time to datetime.
+        """
+        if not unix_time:
+            return None
+        return datetime.utcfromtimestamp(unix_time)

@@ -156,27 +156,91 @@ def periodic_fetch_task(self, periode=48, rows=200):
 
 @celery.task(bind=True, max_retries=3, default_retry_delay=60)
 def move_data_to_dwh_task(self, delete_from_staging=False):
-    """
-    Moves data from the staging table to the Data Warehouse.
-
-    Args:
-        self (Task): The task instance automatically passed by Celery.
-        delete_from_staging (bool): Whether to delete data from the staging table after moving.
-
-    Returns:
-        dict: Task result indicating success or failure.
-    """
     db = Database()
     task_id = self.request.id
 
     try:
-        celery_logger.info(f"Task {task_id}: Moving data to DWH. Delete from staging: {delete_from_staging}")
+        celery_logger.info(f"Task {task_id}: Moving reference data to DWH.")
 
         db.connect()
-        rows_moved = db.move_data_to_dwh(delete_from_staging=delete_from_staging)
 
-        celery_logger.info(f"Task {task_id}: Moved {rows_moved} rows to DWH.")
-        return {"status": "success", "message": f"Moved {rows_moved} rows to DWH."}
+        # Referenzdaten von dl.* nach dwh.* kopieren
+        db.move_reference_data(
+            source_table="dl.make",
+            target_table="dwh.make",
+            source_columns=["make_id", "make_name"],
+            target_columns=["id", "make_name"]
+        )
+        db.move_reference_data(
+            source_table="dl.model",
+            target_table="dwh.model",
+            source_columns=["model_id", "model_name", "make_id"],
+            target_columns=["id", "model_name", "make_id"]
+        )
+        db.move_reference_data(
+            source_table="dl.exterior_colour_main",
+            target_table="dwh.color",
+            source_columns=["id", "colour"],
+            target_columns=["id", "color_name"]
+        )
+        db.move_reference_data(
+            source_table="dl.equipment_search",
+            target_table="dwh.equipment_details",
+            source_columns=["id", "equipment_name"],
+            target_columns=["equipment_code", "equipment"]
+        )
+        db.move_reference_data(
+            source_table="dl.transmission",
+            target_table="dwh.transmission",
+            source_columns=["id", "transmission_type"],
+            target_columns=["id", "transmission_type"]
+        )
+        db.move_reference_data(
+            source_table="dl.motor_condition",
+            target_table="dwh.condition",
+            source_columns=["id", "condition"],
+            target_columns=["id", "car_condition"]
+        )
+        db.move_reference_data(
+            source_table="dl.car_type",
+            target_table="dwh.car_type",
+            source_columns=["id", "type"],
+            target_columns=["id", "type"]
+        )
+        db.move_reference_data(
+            source_table="dl.engine_fuel",
+            target_table="dwh.fuel",
+            source_columns=["id", "fuel_type"],
+            target_columns=["id", "fuel_type"]
+        )
+        # db.move_reference_data(
+        #     source_table="dl.model",
+        #     target_table="dwh.model",
+        #     source_columns=["model_id", "model_name", "make_id"],
+        #     target_columns=["id", "model_name", "make_id"],
+        #     transformations={
+        #         "model_id": lambda x: x + 1,  # model_id um 1 erhöhen
+        #         "model_name": lambda x: x.upper(),  # model_name in Großbuchstaben umwandeln
+        #         "make_id": lambda x: x - 2  # make_id um 2 verringern
+        #     }
+        # )
+
+        # # Transformationen definieren
+        # transformations = {
+        #     "make": lambda x: x.lower(),  # Markenname in Großbuchstaben
+        # }
+        #
+        # # Hauptdaten von dl.willhaben nach dwh.willwagen verschieben
+        # db.move_data_to_dwh(
+        #     staging_table="dl.willhaben",
+        #     dwh_table="dwh.willwagen",
+        #     transformations=transformations,
+        #     source_id=1,  # ID für die Datenquelle dl.willhaben
+        #     delete_from_staging=delete_from_staging
+        # )
+
+        celery_logger.info(f"Task {task_id}: Data moved to DWH successfully.")
+        return {"status": "success", "message": "Data moved to DWH successfully."}
 
     except Exception as e:
         celery_logger.error(f"Task {task_id} failed: {e}")
