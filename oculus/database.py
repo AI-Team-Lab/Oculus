@@ -3,7 +3,7 @@ import pymssql
 import logging
 from oculus.logging import database_logger
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 load_dotenv()
@@ -670,7 +670,104 @@ class Database:
         """
         self.ensure_connection()
 
+        # Define the mapping for make transformations
+        make_mapping = {
+            "Alfa Romeo": "alfa_romeo",
+            "Aston Martin": "aston_martin",
+            "Citroën": "citroen",
+            "Chevrolet / Daewoo": "chevrolet_daewoo",
+            "Land Rover": "land_rover",
+            "Lexus": "lexus",
+            "Lincoln": "lincoln",
+            "Lotus": "lotus",
+            "Maserati": "maserati",
+            "Maybach": "maybach",
+            "Mazda": "mazda",
+            "Mercedes-Benz": "merces_benz",
+            "Mercury": "mercury",
+            "MG": "mg",
+            "MINI": "mini",
+            "Mitsubishi": "mitsubishi",
+            "Morgan": "morgan",
+            "Nissan": "nissan",
+            "Opel": "opel",
+            "Peugeot": "peugeot",
+            "Pontiac": "pontiac",
+            "Porsche": "porsche",
+            "Puch": "puch",
+            "Renault": "renault",
+            "Rolls-Royce": "rolls_royce",
+            "Rover": "rover",
+            "Saab": "saab",
+            "Seat": "seat",
+            "Skoda": "skoda",
+            "Smart": "smart",
+            "SsangYong": "ssangyong",
+            "Subaru": "subaru",
+            "Suzuki": "suzuki",
+            "Toyota": "toyota",
+            "Volvo": "volvo",
+            "VW": "vw",
+            "Wiesmann": "wiesmann",
+            "British Leyland": "british_leyland",
+            "Innocenti": "innocenti",
+            "Talbot": "talbot",
+            "Austin": "austin",
+            "Sonstige": "sonstige",
+            "Caterham": "caterham",
+            "Tata": "tata",
+            "Mahindra": "mahindra",
+            "Abarth": "abarth",
+            "KTM": "ktm",
+            "Think": "think",
+            "Tesla": "tesla",
+            "Infiniti": "infiniti",
+            "Aixam": "aixam",
+            "Microcar": "microcar",
+            "Ligier": "ligier",
+            "Triumph": "triumph",
+            "Graf Carello": "graf_carello",
+            "Casalini": "casalini",
+            "Corvette": "corvette",
+            "DS Automobiles": "ds_automobiles",
+            "McLaren": "mclaren",
+            "Trabant": "trabant",
+            "Zhidou": "zhidou",
+            "Alpine": "alpine",
+            "Cupra": "cupra",
+            "JAC": "jac",
+            "MAN": "man",
+            "Polestar": "polestar",
+            "GMC": "gmc",
+            "Alpina": "alpina",
+            "Eli": "eli",
+            "Skywell Automobile": "skywell_automobile",
+            "BYD": "byd",
+            "Ineos": "ineos",
+            "Aiways": "aiways",
+            "Genesis": "genesis",
+            "Hongqi": "hongqi",
+            "BAIC": "baic",
+            "Fisker": "fisker",
+            "LYNK & Co": "lynk_&_co",
+            "Maxus": "maxus"
+        }
+
+        # Define the mapping for car_type transformations
+        car_type_mapping = {
+            "Cabrio / Roadster": "convertible",
+            "Klein-/ Kompaktwagen": "compact_car",
+            "Kleinbus": "minibus",
+            "Kombi / Family Van": "station_wagon",
+            "Limousine": "sedan",
+            "Mopedauto": "moped_car",
+            "Sportwagen / Coupé": "sports_car",
+            "SUV / Geländewagen": "suv"
+        }
+
         try:
+            self.logger.info(f"Starting data transfer from {staging_table} to {dwh_table}")
+
             # Extract data from the staging table
             query = f"SELECT * FROM {staging_table}"
             self.cursor.execute(query)
@@ -684,24 +781,44 @@ class Database:
                 if transformations:
                     for key, transform_func in transformations.items():
                         if key in row_dict:
+                            original_value = row_dict[key]
                             row_dict[key] = transform_func(row_dict[key])
+                            self.logger.debug(f"Transformed {key}: {original_value} -> {row_dict[key]}")
+
+                # Transform car_type using the mapping
+                car_type = row_dict["car_type"]
+                transformed_car_type = car_type_mapping.get(car_type)
+                if not transformed_car_type:
+                    self.logger.warning(f"Unknown car_type '{car_type}' in row {row_dict['id']}, skipping.")
+                    continue
+
+                car_type_id = self.lookup_or_insert("dwh.car_type", "type", transformed_car_type)
+
+                # Transform make using the mapping
+                make = row_dict["make"]
+                transformed_make = make_mapping.get(make)
+                if not transformed_make:
+                    self.logger.warning(f"Unknown make '{make}' in row {row_dict['id']}, skipping.")
+                    continue
+
+                make_id = self.lookup_or_insert("dwh.make", "make_name", transformed_make)
 
                 # Transform data for dwh.willwagen
                 transformed_willwagen = {
-                    "source": source_id or 1,  # Default source ID if not provided
-                    "make_id": self.lookup_or_insert("dwh.make", "make_name", row_dict["make"]),
-                    "model_id": self.lookup_or_insert("dwh.model", "model_name", row_dict["model"]),
+                    "source_id": source_id or 1,  # Default source ID if not provided
+                    # "make_id": self.lookup_or_insert("dwh.make", "make_name", row_dict["make"]),
+                    "make_id": make_id,
+                    # "model_id": self.lookup_or_insert("dwh.model", "model_name", row_dict["model"]),
                     "year_model": row_dict["year_model"],
-                    "transmission_id": self.lookup_or_insert("dwh.transmission", "transmission_type",
-                                                             row_dict["transmission"]),
+                    "transmission_id": row_dict["transmission"],
                     "mileage": row_dict["mileage"],
                     "noofseats": row_dict["noofseats"],
                     "power_in_kw": row_dict["engine_effect"],
-                    "engine_fuel_id": self.lookup_or_insert("dwh.fuel", "fuel_type", row_dict["engine_fuel"]),
-                    "car_type_id": self.lookup_or_insert("dwh.car_type", "type_name", row_dict["car_type"]),
+                    "engine_fuel_id": row_dict["engine_fuel"],
+                    "car_type_id": car_type_id,
                     "no_of_owners": row_dict["no_of_owners"],
-                    "color_id": self.lookup_or_insert("dwh.color", "color_name", row_dict["color"]),
-                    "condition_id": self.lookup_or_insert("dwh.condition", "condition_name", row_dict["condition"]),
+                    "color_id": row_dict["color"],
+                    "condition_id": row_dict["condition"],
                     "price": row_dict["price"],
                     "warranty": row_dict["warranty"] == 1,  # True if 1
                     "published": self.convert_unix_to_datetime(row_dict["published"]),
@@ -709,9 +826,13 @@ class Database:
                     "isprivate": row_dict["isprivate"] == 1,  # True if 1
                 }
 
+                # Insert transformed data into dwh.willwagen and retrieve generated ID
+                willwagen_id = self.insert_into_table(dwh_table, transformed_willwagen, return_id=True)
+
                 # Transform data for dwh.location
                 coordinates = row_dict["coordinates"].split(",") if row_dict["coordinates"] else [None, None]
                 transformed_location = {
+                    "willwagen_id": willwagen_id,  # Use the generated ID from dwh.willwagen
                     "address": row_dict["address"],
                     "location": row_dict["location"],
                     "postcode": row_dict["postcode"],
@@ -722,15 +843,16 @@ class Database:
                     "latitude": coordinates[1],
                 }
 
+                # Insert transformed data into dwh.location
+                self.insert_or_update("dwh.location", transformed_location, keys=["willwagen_id"])
+
                 # Transform data for dwh.specification
                 transformed_specification = {
-                    "willwagen_id": row_dict["id"],
+                    "willwagen_id": willwagen_id,  # Use the generated ID from dwh.willwagen
                     "specification": row_dict["specification"],
                 }
 
-                # Insert transformed data into target tables
-                self.insert_into_table(dwh_table, transformed_willwagen)
-                self.insert_or_update("dwh.location", transformed_location, keys=["address", "location", "postcode"])
+                # Insert transformed data into dwh.specification
                 self.insert_into_table("dwh.specification", transformed_specification)
 
             # Optionally delete data from the staging table
@@ -740,9 +862,11 @@ class Database:
 
             # Commit changes
             self.conn.commit()
+            self.logger.info(f"Data transfer from {staging_table} to {dwh_table} completed successfully")
 
         except Exception as e:
             self.conn.rollback()
+            self.logger.error(f"Failed to move data to DWH: {e}")
             raise Exception(f"Failed to move data to DWH: {e}")
 
     def lookup_or_insert(self, table, column, value):
@@ -758,13 +882,17 @@ class Database:
         self.cursor.execute(f"INSERT INTO {table} ({column}) OUTPUT inserted.id VALUES (%s)", (value,))
         return self.cursor.fetchone()[0]
 
-    def insert_into_table(self, table_name, data):
+    def insert_into_table(self, table_name, data, return_id=False):
         """
         Inserts data into the specified table.
 
         Args:
-            table_name (str): The name of the table to insert data into.
-            data (dict): A dictionary where keys are column names and values are the corresponding values.
+            table_name (str): Name of the table to insert data into.
+            data (dict): Dictionary of column-value pairs to insert.
+            return_id (bool): Whether to return the generated ID for the inserted row.
+
+        Returns:
+            int: The generated ID if return_id is True; otherwise, None.
 
         Raises:
             Exception: If the insertion fails.
@@ -772,11 +900,19 @@ class Database:
         try:
             columns = ", ".join(data.keys())
             placeholders = ", ".join(["%s"] * len(data))
-            values = tuple(data.values())
-
             query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-            self.cursor.execute(query, values)
+
+            if return_id:
+                query += "; SELECT SCOPE_IDENTITY()"
+
+            self.cursor.execute(query, tuple(data.values()))
+            if return_id:
+                generated_id = self.cursor.fetchone()[0]
+                return generated_id
+
         except Exception as e:
+            self.conn.rollback()
+            self.logger.error(f"Failed to insert into {table_name}: {e}")
             raise Exception(f"Failed to insert into {table_name}: {e}")
 
     def insert_or_update(self, table_name, data, keys):
@@ -792,23 +928,45 @@ class Database:
             Exception: If the operation fails.
         """
         try:
-            columns = ", ".join(data.keys())
-            placeholders = ", ".join(["%s"] * len(data))
-            updates = ", ".join([f"{col} = EXCLUDED.{col}" for col in data.keys()])
-            values = tuple(data.values())
+            columns = list(data.keys())
+            values = list(data.values())
+            key_conditions = " AND ".join([f"target.{key} = source.{key}" for key in keys])
 
-            conflict_columns = ", ".join(keys)
-            query = (f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders}) "
-                     f"ON CONFLICT ({conflict_columns}) DO UPDATE SET {updates}")
-            self.cursor.execute(query, values)
+            merge_query = f"""
+            MERGE INTO {table_name} AS target
+            USING (VALUES ({', '.join(['%s'] * len(columns))})) AS source ({', '.join(columns)})
+            ON {key_conditions}
+            WHEN MATCHED THEN
+                UPDATE SET {', '.join([f"target.{col} = source.{col}" for col in columns if col not in keys])}
+            WHEN NOT MATCHED THEN
+                INSERT ({', '.join(columns)}) 
+                VALUES ({', '.join([f"source.{col}" for col in columns])});
+            """
+            self.cursor.execute(merge_query, values)
         except Exception as e:
+            self.conn.rollback()
+            self.logger.error(f"Failed to insert or update in {table_name}: {e}")
             raise Exception(f"Failed to insert or update in {table_name}: {e}")
 
     @staticmethod
-    def convert_unix_to_datetime(self, unix_time):
+    def convert_unix_to_datetime(unix_time):
         """
-        Convert UNIX time to datetime.
+        Convert UNIX time (in seconds or milliseconds) to a timezone-aware UTC datetime object.
+
+        Args:
+            unix_time (int): UNIX timestamp in seconds or milliseconds.
+
+        Returns:
+            datetime: Timezone-aware UTC datetime object or None if unix_time is None or invalid.
         """
         if not unix_time:
             return None
-        return datetime.utcfromtimestamp(unix_time)
+
+        try:
+            # Convert UNIX time in milliseconds to seconds if needed
+            if unix_time > 10 ** 10:  # Likely in milliseconds
+                unix_time /= 1000
+
+            return datetime.fromtimestamp(unix_time, tz=timezone.utc)
+        except Exception as e:
+            raise ValueError(f"Failed to convert UNIX time {unix_time} to datetime: {e}")

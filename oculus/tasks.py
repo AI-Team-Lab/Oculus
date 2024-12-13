@@ -225,19 +225,20 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
         #     }
         # )
 
-        # # Transformationen definieren
-        # transformations = {
-        #     "make": lambda x: x.lower(),  # Markenname in Großbuchstaben
-        # }
-        #
-        # # Hauptdaten von dl.willhaben nach dwh.willwagen verschieben
-        # db.move_data_to_dwh(
-        #     staging_table="dl.willhaben",
-        #     dwh_table="dwh.willwagen",
-        #     transformations=transformations,
-        #     source_id=1,  # ID für die Datenquelle dl.willhaben
-        #     delete_from_staging=delete_from_staging
-        # )
+        # Transformationen definieren
+        transformations = {
+            # "make": lambda x: x.lower(),  # Markenname in Kleinbuchstaben
+            # "model": lambda x: x.lower(),  # Modellname in Kleinbuchstaben
+        }
+
+        # Hauptdaten von dl.willhaben nach dwh.willwagen verschieben
+        db.move_data_to_dwh(
+            staging_table="dl.willhaben",
+            dwh_table="dwh.willwagen",
+            transformations=transformations,
+            source_id=1,  # ID für die Datenquelle dl.willhaben
+            delete_from_staging=delete_from_staging
+        )
 
         celery_logger.info(f"Task {task_id}: Data moved to DWH successfully.")
         return {"status": "success", "message": "Data moved to DWH successfully."}
