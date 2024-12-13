@@ -116,7 +116,7 @@ def periodic_fetch_task(self, periode=48, rows=200):
         celery_logger.info(f"Task {task_id} started at {start_time}. Fetching cars for the last {periode} hours.")
 
         db.connect()
-        table_name = "dbo.willhaben"
+        table_name = "dl.willhaben"
 
         while True:
             result = willhaben.search_car(periode=periode, page=page, rows=rows)
@@ -213,6 +213,12 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
             source_columns=["id", "fuel_type"],
             target_columns=["id", "fuel_type"]
         )
+        db.move_reference_data(
+            source_table="dl.equipment",
+            target_table="dwh.equipment",
+            source_columns=["id", "willhaben_id", "equipment_code"],
+            target_columns=["id", "willhaben_id", "equipment_code"]
+        )
         # db.move_reference_data(
         #     source_table="dl.model",
         #     target_table="dwh.model",
@@ -227,8 +233,8 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
 
         # Transformationen definieren
         transformations = {
-            # "make": lambda x: x.lower(),  # Markenname in Kleinbuchstaben
-            # "model": lambda x: x.lower(),  # Modellname in Kleinbuchstaben
+            "make": lambda x: x.lower(),
+            "model": lambda x: x.lower(),
         }
 
         # Hauptdaten von dl.willhaben nach dwh.willwagen verschieben

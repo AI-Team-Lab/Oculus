@@ -677,80 +677,235 @@ class Database:
             "Citroën": "citroen",
             "Chevrolet / Daewoo": "chevrolet_daewoo",
             "Land Rover": "land_rover",
-            "Lexus": "lexus",
-            "Lincoln": "lincoln",
-            "Lotus": "lotus",
-            "Maserati": "maserati",
-            "Maybach": "maybach",
-            "Mazda": "mazda",
             "Mercedes-Benz": "merces_benz",
-            "Mercury": "mercury",
-            "MG": "mg",
-            "MINI": "mini",
-            "Mitsubishi": "mitsubishi",
-            "Morgan": "morgan",
-            "Nissan": "nissan",
-            "Opel": "opel",
-            "Peugeot": "peugeot",
-            "Pontiac": "pontiac",
-            "Porsche": "porsche",
-            "Puch": "puch",
-            "Renault": "renault",
             "Rolls-Royce": "rolls_royce",
-            "Rover": "rover",
-            "Saab": "saab",
-            "Seat": "seat",
-            "Skoda": "skoda",
-            "Smart": "smart",
-            "SsangYong": "ssangyong",
-            "Subaru": "subaru",
-            "Suzuki": "suzuki",
-            "Toyota": "toyota",
-            "Volvo": "volvo",
-            "VW": "vw",
-            "Wiesmann": "wiesmann",
             "British Leyland": "british_leyland",
-            "Innocenti": "innocenti",
-            "Talbot": "talbot",
-            "Austin": "austin",
-            "Sonstige": "sonstige",
-            "Caterham": "caterham",
-            "Tata": "tata",
-            "Mahindra": "mahindra",
-            "Abarth": "abarth",
-            "KTM": "ktm",
-            "Think": "think",
-            "Tesla": "tesla",
-            "Infiniti": "infiniti",
-            "Aixam": "aixam",
-            "Microcar": "microcar",
-            "Ligier": "ligier",
-            "Triumph": "triumph",
             "Graf Carello": "graf_carello",
-            "Casalini": "casalini",
-            "Corvette": "corvette",
             "DS Automobiles": "ds_automobiles",
-            "McLaren": "mclaren",
-            "Trabant": "trabant",
-            "Zhidou": "zhidou",
-            "Alpine": "alpine",
-            "Cupra": "cupra",
-            "JAC": "jac",
-            "MAN": "man",
-            "Polestar": "polestar",
-            "GMC": "gmc",
-            "Alpina": "alpina",
-            "Eli": "eli",
             "Skywell Automobile": "skywell_automobile",
-            "BYD": "byd",
-            "Ineos": "ineos",
-            "Aiways": "aiways",
-            "Genesis": "genesis",
-            "Hongqi": "hongqi",
-            "BAIC": "baic",
-            "Fisker": "fisker",
             "LYNK & Co": "lynk_&_co",
-            "Maxus": "maxus"
+        }
+
+        # Define the mapping for model transformations
+        model_mapping = {
+            "3er-Reihe": "test",
+            "ID.7": "test",
+            "Ioniq 6": "test",
+            "CL-Klasse": "test",
+            "Range Rover": "test",
+            "C3 Picasso": "test",
+            "Seal U": "test",
+            "Crossland X": "test",
+            "SLK-Klasse": "test",
+            "RX-8": "test",
+            "R 19": "test",
+            "124 Spider": "test",
+            "Saratoga": "test",
+            "RX-7": "test",
+            "Vivaro-e": "test",
+            "ZS EV": "test",
+            "GLE-Klasse": "test",
+            "SLC-Klasse": "test",
+            "G-Klasse": "test",
+            "Model 3": "test",
+            "SLS AMG": "test",
+            "H-1": "test",
+            "Le Baron": "test",
+            "Trans Sport": "test",
+            "Serie 400": "test",
+            "SX4 S-Cross": "test",
+            "Xedos 9": "test",
+            "ID.5": "test",
+            "Santa Fe": "test",
+            "DS 3": "test",
+            "Model S": "test",
+            "C5 X": "test",
+            "488 GTB": "test",
+            "CLE-Klasse": "test",
+            "Xsara Picasso": "test",
+            "Vel Satis": "test",
+            "C4 Aircross": "test",
+            "Punto Evo": "test",
+            "200 SX": "test",
+            "Sigma": "test",
+            "A 310": "test",
+            "Wagon R": "test",
+            "5er-Reihe": "test",
+            "GLA-Klasse": "test",
+            "T-Cross": "test",
+            "Range Rover Evoque": "test",
+            "F-Pace": "test",
+            "Discovery Sport": "test",
+            "Grand C4 Spacetourer": "test",
+            "A4 allroad": "test",
+            "CX-30": "test",
+            "ZR-V": "test",
+            "F-Type": "test",
+            "Serie 700": "test",
+            "PT Cruiser": "test",
+            "CR-Z": "test",
+            "Morgan plus 4": "test",
+            "Aero Coupe": "test",
+            "Supra Katarga": "test",
+            "M-Klasse": "test",
+            "4er-Reihe": "test",
+            "Model X": "test",
+            "Altea XL": "test",
+            "S-Cross": "test",
+            "e-208": "test",
+            "Mustang Mach-E": "test",
+            "A6 allroad": "test",
+            "MG F": "test",
+            "R 11": "test",
+            "Fiorino Qubo": "test",
+            "Volkswagen CC": "test",
+            "e-tron GT": "test",
+            "Euniq 6": "test",
+            "370 Z": "test",
+            "Palio": "test",
+            "Hi Ace": "test",
+            "1542": "test",
+            "2er-Reihe": "test",
+            "ID.3": "test",
+            "8er-Reihe": "test",
+            "300 ZX": "test",
+            "Puch G": "test",
+            "MG TF": "test",
+            "C4 X": "test",
+            "R 5": "test",
+            "Serie 900": "test",
+            "Town Car": "test",
+            "Kalina": "test",
+            "T-Roc": "test",
+            "Grande Punto": "test",
+            "S-Klasse": "test",
+            "DS 5": "test",
+            "Käfer": "test",
+            "Serie 800": "test",
+            "350 Z": "test",
+            "Grand Espace": "test",
+            "iOn": "test",
+            "Alero": "test",
+            "Murciélago": "test",
+            "1er-Reihe": "test",
+            "e-tron": "test",
+            "CX-5": "test",
+            "D-Truck": "test",
+            "HR-V": "test",
+            "Transit Custom": "test",
+            "Eos": "test",
+            "Huracán": "test",
+            "Y / Ypsilon": "test",
+            "e-up!": "test",
+            "E-Klasse": "test",
+            "DS 7 Crossback": "test",
+            "S-MAX": "test",
+            "Ioniq 5": "test",
+            "CX-60": "test",
+            "300 C": "test",
+            "T-Klasse": "test",
+            "Morgan Aero 8": "test",
+            "C-Zero": "test",
+            "MX-6": "test",
+            "A-Klasse": "test",
+            "e-Niro": "test",
+            "CR-V": "test",
+            "ID. Buzz": "test",
+            "6er-Reihe": "test",
+            "9-3": "test",
+            "Yaris Cross": "test",
+            "1413": "test",
+            "EV3": "test",
+            "FR-V": "test",
+            "Serie 200": "test",
+            "300 M": "test",
+            "E-Truck": "test",
+            "Grand Cherokee": "test",
+            "Space Star": "test",
+            "I-Pace": "test",
+            "C4 Cactus": "test",
+            "V-Klasse": "test",
+            "Doblò": "test",
+            "CX-7": "test",
+            "SJ 413": "test",
+            "CLC-Klasse": "test",
+            "Kizashi": "test",
+            "Shuma": "test",
+            "CX-9": "test",
+            "599": "test",
+            "CLA-Klasse": "test",
+            "C4 Spacetourer": "test",
+            "M.GO": "test",
+            "MX-30": "test",
+            "SL-Klasse": "test",
+            "Coupé": "test",
+            "AMG GT": "test",
+            "up!": "test",
+            "GLS-Klasse": "test",
+            "488 Spider": "test",
+            "CX-80": "test",
+            "Urban Cruiser": "test",
+            "Morgan Roadster": "test",
+            "100 NX": "test",
+            "GT-R": "test",
+            "Morgan 4/4": "test",
+            "Grand Scénic": "test",
+            "Gran Turismo": "test",
+            "GLC-Klasse": "test",
+            "C-MAX": "test",
+            "Range Rover Velar": "test",
+            "Model Y": "test",
+            "R-Klasse": "test",
+            "S-Type": "test",
+            "GL-Klasse": "test",
+            "Grandland X": "test",
+            "GLK-Klasse": "test",
+            "e-Rifter": "test",
+            "Space Wagon": "test",
+            "Range Rover Sport": "test",
+            "F8 Tributo": "test",
+            "Mégane": "test",
+            "7er-Reihe": "test",
+            "C-HR": "test",
+            "Minauto": "test",
+            "B-MAX": "test",
+            "C3 Aircross": "test",
+            "X-Bow": "test",
+            "C4 Picasso": "test",
+            "DS 4": "test",
+            "CRX / CR-X": "test",
+            "MX-3": "test",
+            "Lanos": "test",
+            "Gran Cabrio": "test",
+            "ETP 3": "test",
+            "Marvel R": "test",
+            "Qashqai": "test",
+            "ID.4": "test",
+            "X-TRAIL": "test",
+            "Scénic": "test",
+            "C5 Aircross": "test",
+            "E-Pace": "test",
+            "e-2008": "test",
+            "MX-5": "test",
+            "4-Runner": "test",
+            "Morgan plus 8": "test",
+            "X-Type": "test",
+            "3200 GT": "test",
+            "F8 Spider": "test",
+            "2207": "test",
+            "2286": "test",
+            "Brava": "test",
+            "B-Klasse": "test",
+            "C-Klasse": "test",
+            "500 E": "test",
+            "CLS-Klasse": "test",
+            "CX-3": "test",
+            "Land Cruiser": "test",
+            "Passat CC": "test",
+            "CLK-Klasse": "test",
+            "Corolla Cross": "test",
+            "9-5": "test",
+            "C-Crosser": "test",
         }
 
         # Define the mapping for car_type transformations
@@ -796,19 +951,35 @@ class Database:
 
                 # Transform make using the mapping
                 make = row_dict["make"]
-                transformed_make = make_mapping.get(make)
+                transformed_make = make_mapping.get(make, make)
                 if not transformed_make:
                     self.logger.warning(f"Unknown make '{make}' in row {row_dict['id']}, skipping.")
                     continue
 
                 make_id = self.lookup_or_insert("dwh.make", "make_name", transformed_make)
 
+                # Transform model using the mapping
+                model = row_dict["model"]
+                transformed_model = model_mapping.get(model, model)
+                if not transformed_model:
+                    self.logger.warning(f"Unknown model '{model}' in row {row_dict['id']}, skipping.")
+                    continue
+
+                model_id = self.lookup_or_insert("dwh.model", "model_name", transformed_model)
+
+                # Check if willhaben_id already exists in dwh.willwagen
+                query_check = f"SELECT 1 FROM {dwh_table} WHERE willhaben_id = %s"
+                self.cursor.execute(query_check, (row_dict["id"],))
+                if self.cursor.fetchone():
+                    self.logger.warning(f"Duplicate willhaben_id '{row_dict['id']}' found, skipping row.")
+                    continue  # Skip the current row if it already exists
+
                 # Transform data for dwh.willwagen
                 transformed_willwagen = {
+                    "willhaben_id": row_dict["id"],
                     "source_id": source_id or 1,  # Default source ID if not provided
-                    # "make_id": self.lookup_or_insert("dwh.make", "make_name", row_dict["make"]),
                     "make_id": make_id,
-                    # "model_id": self.lookup_or_insert("dwh.model", "model_name", row_dict["model"]),
+                    "model_id": model_id,
                     "year_model": row_dict["year_model"],
                     "transmission_id": row_dict["transmission"],
                     "mileage": row_dict["mileage"],
@@ -826,34 +997,99 @@ class Database:
                     "isprivate": row_dict["isprivate"] == 1,  # True if 1
                 }
 
-                # Insert transformed data into dwh.willwagen and retrieve generated ID
-                willwagen_id = self.insert_into_table(dwh_table, transformed_willwagen, return_id=True)
+                self.logger.debug(f"Inserting transformed_willwagen: {transformed_willwagen}")
+                self.insert_into_table(dwh_table, transformed_willwagen, return_id=True)
 
-                # Transform data for dwh.location
-                coordinates = row_dict["coordinates"].split(",") if row_dict["coordinates"] else [None, None]
-                transformed_location = {
-                    "willwagen_id": willwagen_id,  # Use the generated ID from dwh.willwagen
-                    "address": row_dict["address"],
-                    "location": row_dict["location"],
-                    "postcode": row_dict["postcode"],
-                    "district": row_dict["district"],
-                    "state": row_dict["state"],
-                    "country": row_dict["country"],
-                    "longitude": coordinates[0],
-                    "latitude": coordinates[1],
-                }
+                try:
+                    # Deactivate foreign key constraint for dwh.location
+                    self.cursor.execute("ALTER TABLE dwh.location NOCHECK CONSTRAINT FK_location_willwagen")
 
-                # Insert transformed data into dwh.location
-                self.insert_or_update("dwh.location", transformed_location, keys=["willwagen_id"])
+                    # Transform data for dwh.location
+                    coordinates = row_dict["coordinates"].split(",") if row_dict["coordinates"] else [None, None]
+                    transformed_location = {
+                        "willhaben_id": row_dict["id"],  # ID aus dl.willhaben
+                        "address": row_dict["address"],
+                        "location": row_dict["location"],
+                        "postcode": row_dict["postcode"],
+                        "district": row_dict["district"],
+                        "state": row_dict["state"],
+                        "country": row_dict["country"],
+                        "longitude": coordinates[0],
+                        "latitude": coordinates[1],
+                    }
 
-                # Transform data for dwh.specification
-                transformed_specification = {
-                    "willwagen_id": willwagen_id,  # Use the generated ID from dwh.willwagen
-                    "specification": row_dict["specification"],
-                }
+                    # Insert transformed data into dwh.location
+                    self.insert_or_update("dwh.location", transformed_location, keys=["willhaben_id"])
 
-                # Insert transformed data into dwh.specification
-                self.insert_into_table("dwh.specification", transformed_specification)
+                    # Reactivate foreign key constraint for dwh.location
+                    self.cursor.execute("ALTER TABLE dwh.location CHECK CONSTRAINT FK_location_willwagen")
+
+                    # Deactivate foreign key constraint for dwh.specification
+                    self.cursor.execute("ALTER TABLE dwh.specification NOCHECK CONSTRAINT FK_specification_willwagen")
+
+                    # Transform data for dwh.specification
+                    transformed_specification = {
+                        "willhaben_id": row_dict["id"],
+                        "specification": row_dict["specification"],
+                    }
+
+                    # Insert transformed data into dwh.specification
+                    self.insert_into_table("dwh.specification", transformed_specification)
+
+                    # Reactivate foreign key constraint for dwh.specification
+                    self.cursor.execute("ALTER TABLE dwh.specification CHECK CONSTRAINT FK_specification_willwagen")
+
+                    # Deactivate foreign key constraint for dwh.description
+                    self.cursor.execute("ALTER TABLE dwh.description NOCHECK CONSTRAINT FK_description_willwagen")
+
+                    # Transform data for dwh.description
+                    transformed_description = {
+                        "willhaben_id": row_dict["id"],
+                        "description": row_dict["description"],
+                    }
+
+                    # Insert transformed data into dwh.description
+                    self.insert_into_table("dwh.description", transformed_description)
+
+                    # Reactivate foreign key constraint for dwh.description
+                    self.cursor.execute("ALTER TABLE dwh.description CHECK CONSTRAINT FK_description_willwagen")
+
+                    # Deactivate foreign key constraint for dwh.image_url
+                    self.cursor.execute("ALTER TABLE dwh.image_url NOCHECK CONSTRAINT FK_image_url_willwagen")
+
+                    # Transform data for dwh.image_url
+                    transformed_image_url = {
+                        "willhaben_id": row_dict["id"],
+                        "image_url": row_dict["main_image_url"],
+                    }
+
+                    # Insert transformed data into dwh.image_url
+                    self.insert_into_table("dwh.image_url", transformed_image_url)
+
+                    # Reactivate foreign key constraint for dwh.image_url
+                    self.cursor.execute("ALTER TABLE dwh.image_url CHECK CONSTRAINT FK_image_url_willwagen")
+
+                    # Deactivate foreign key constraint for dwh.seo_url
+                    self.cursor.execute("ALTER TABLE dwh.seo_url NOCHECK CONSTRAINT FK_seo_url_willwagen")
+
+                    # Transform data for dwh.seo_url
+                    transformed_seo_url = {
+                        "willhaben_id": row_dict["id"],
+                        "seo_url": row_dict["seo_url"],
+                    }
+
+                    # Insert transformed data into dwh.seo_url
+                    self.insert_into_table("dwh.seo_url", transformed_seo_url)
+
+                    # Reactivate foreign key constraint for dwh.seo_url
+                    self.cursor.execute("ALTER TABLE dwh.seo_url CHECK CONSTRAINT FK_seo_url_willwagen")
+
+                except Exception as e:
+                    self.logger.error(f"Failed to process row {row_dict['id']}: {e}")
+                    self.conn.rollback()  # Rollback if there's an error
+                    raise
+                finally:
+                    self.conn.commit()  # Commit changes
 
             # Optionally delete data from the staging table
             if delete_from_staging:

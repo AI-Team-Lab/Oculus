@@ -64,7 +64,7 @@ class GebrauchtwagenData:
     def create_table(self):
         """Create the 'Gebrauchtwagen' table in Azure SQL."""
         create_table_query = """
-        CREATE TABLE dbo.gebrauchtwagen (
+        CREATE TABLE dl.gebrauchtwagen (
             id UNIQUEIDENTIFIER PRIMARY KEY,
             make NVARCHAR(50) NOT NULL,
             model NVARCHAR(50) NOT NULL,
@@ -99,7 +99,7 @@ class GebrauchtwagenData:
     def insert_data(self, df):
         """Insert data from the DataFrame into the 'Gebrauchtwagen' table."""
         insert_query = """
-        INSERT INTO dbo.Gebrauchtwagen (id, make, model, mileage, engine_effect, engine_fuel, year_model, location, price)
+        INSERT INTO dl.Gebrauchtwagen (id, make, model, mileage, engine_effect, engine_fuel, year_model, location, price)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         with self.database.conn.cursor() as cursor:
@@ -123,7 +123,7 @@ class GebrauchtwagenData:
 
 def main():
     # Path to the CSV file (ensure this path is correct)
-    csv_file_path = os.path.join(os.getcwd(), 'output_api/gebrauchtwagen_data_122024.csv')
+    csv_file_path = os.path.join(os.getcwd(), 'model/output_api/gebrauchtwagen_data_122024.csv')
 
     # Create a database connection object
     db = DatabaseConnection()
