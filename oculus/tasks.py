@@ -164,72 +164,86 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
 
         db.connect()
 
-        # Referenzdaten von dl.* nach dwh.* kopieren
-        db.move_reference_data(
-            source_table="dl.make",
-            target_table="dwh.make",
-            source_columns=["make_id", "make_name"],
-            target_columns=["id", "make_name"]
-        )
-        db.move_reference_data(
-            source_table="dl.model",
-            target_table="dwh.model",
-            source_columns=["model_id", "model_name", "make_id"],
-            target_columns=["id", "model_name", "make_id"]
-        )
-        db.move_reference_data(
-            source_table="dl.exterior_colour_main",
-            target_table="dwh.color",
-            source_columns=["id", "colour"],
-            target_columns=["id", "color_name"]
-        )
-        db.move_reference_data(
-            source_table="dl.equipment_search",
-            target_table="dwh.equipment_details",
-            source_columns=["id", "equipment_name"],
-            target_columns=["equipment_code", "equipment"]
-        )
-        db.move_reference_data(
-            source_table="dl.transmission",
-            target_table="dwh.transmission",
-            source_columns=["id", "transmission_type"],
-            target_columns=["id", "transmission_type"]
-        )
-        db.move_reference_data(
-            source_table="dl.motor_condition",
-            target_table="dwh.condition",
-            source_columns=["id", "condition"],
-            target_columns=["id", "car_condition"]
-        )
-        db.move_reference_data(
-            source_table="dl.car_type",
-            target_table="dwh.car_type",
-            source_columns=["id", "type"],
-            target_columns=["id", "type"]
-        )
-        db.move_reference_data(
-            source_table="dl.engine_fuel",
-            target_table="dwh.fuel",
-            source_columns=["id", "fuel_type"],
-            target_columns=["id", "fuel_type"]
-        )
-        db.move_reference_data(
-            source_table="dl.equipment",
-            target_table="dwh.equipment",
-            source_columns=["id", "willhaben_id", "equipment_code"],
-            target_columns=["id", "willhaben_id", "equipment_code"]
-        )
-        # db.move_reference_data(
-        #     source_table="dl.model",
-        #     target_table="dwh.model",
-        #     source_columns=["model_id", "model_name", "make_id"],
-        #     target_columns=["id", "model_name", "make_id"],
-        #     transformations={
-        #         "model_id": lambda x: x + 1,  # model_id um 1 erhöhen
-        #         "model_name": lambda x: x.upper(),  # model_name in Großbuchstaben umwandeln
-        #         "make_id": lambda x: x - 2  # make_id um 2 verringern
-        #     }
-        # )
+        # Liste aller Tabellen für Delta-Laden
+        tables_to_sync = [
+            {
+                "source_table": "dl.make",
+                "target_table": "dwh.make",
+                "source_columns": ["make_id", "make_name"],
+                "target_columns": ["id", "make_name"],
+                "last_updated_field": "last_synced"
+            },
+            {
+                "source_table": "dl.model",
+                "target_table": "dwh.model",
+                "source_columns": ["model_id", "model_name", "make_id"],
+                "target_columns": ["id", "model_name", "make_id"],
+                "last_updated_field": "last_synced"
+            },
+            {
+                "source_table": "dl.exterior_colour_main",
+                "target_table": "dwh.color",
+                "source_columns": ["id", "colour"],
+                "target_columns": ["id", "color_name"],
+                "last_updated_field": "last_synced"
+            },
+            {
+                "source_table": "dl.equipment_search",
+                "target_table": "dwh.equipment_details",
+                "source_columns": ["id", "equipment_name"],
+                "target_columns": ["equipment_code", "equipment"],
+                "last_updated_field": "last_synced"
+            },
+            {
+                "source_table": "dl.transmission",
+                "target_table": "dwh.transmission",
+                "source_columns": ["id", "transmission_type"],
+                "target_columns": ["id", "transmission_type"],
+                "last_updated_field": "last_synced"
+            },
+            {
+                "source_table": "dl.motor_condition",
+                "target_table": "dwh.condition",
+                "source_columns": ["id", "condition"],
+                "target_columns": ["id", "car_condition"],
+                "last_updated_field": "last_synced"
+            },
+            {
+                "source_table": "dl.car_type",
+                "target_table": "dwh.car_type",
+                "source_columns": ["id", "type"],
+                "target_columns": ["id", "type"],
+                "last_updated_field": "last_synced"
+            },
+            {
+                "source_table": "dl.engine_fuel",
+                "target_table": "dwh.fuel",
+                "source_columns": ["id", "fuel_type"],
+                "target_columns": ["id", "fuel_type"],
+                "last_updated_field": "last_synced"
+            },
+            {
+                "source_table": "dl.equipment",
+                "target_table": "dwh.equipment",
+                "source_columns": ["id", "willhaben_id", "equipment_code"],
+                "target_columns": ["id", "willhaben_id", "equipment_code"],
+                "last_updated_field": "last_synced"
+            }
+        ]
+
+        # Delta-Laden für jede Tabelle
+        for table in tables_to_sync:
+            last_sync_time = db.get_last_sync_time(table["source_table"])
+            db.move_reference_data(
+                source_table=table["source_table"],
+                target_table=table["target_table"],
+                source_columns=table["source_columns"],
+                target_columns=table["target_columns"],
+                last_sync_time=last_sync_time,
+                last_updated_field=table["last_updated_field"]
+            )
+            # Aktualisiere die sync_log-Tabelle mit dem aktuellen Zeitstempel
+            db.update_sync_time(table["source_table"], datetime.now())
 
         # Transformationen definieren
         transformations = {
@@ -238,20 +252,24 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
         }
 
         # Hauptdaten von dl.willhaben nach dwh.willwagen verschieben
+        last_sync_time = db.get_last_sync_time("dl.willhaben")
         db.move_data_to_dwh(
             staging_table="dl.willhaben",
             dwh_table="dwh.willwagen",
             transformations=transformations,
             source_id=1,  # ID für die Datenquelle dl.willhaben
-            delete_from_staging=delete_from_staging
+            delete_from_staging=delete_from_staging,
+            last_sync_time=last_sync_time,
+            last_updated_field="last_synced"
         )
+        db.update_sync_time("dl.willhaben", datetime.now())
 
         celery_logger.info(f"Task {task_id}: Data moved to DWH successfully.")
         return {"status": "success", "message": "Data moved to DWH successfully."}
 
     except Exception as e:
-        celery_logger.error(f"Task {task_id} failed: {e}")
-        self.update_state(state="FAILURE", meta={"error": str(e)})
+        celery_logger.error(f"Task {task_id} failed: {type(e).__name__} - {str(e)}")
+        self.update_state(state="FAILURE", meta={"error": f"{type(e).__name__}: {str(e)}"})
         raise
 
     finally:

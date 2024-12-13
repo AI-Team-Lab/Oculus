@@ -586,75 +586,120 @@ class Database:
             self.logger.error(f"Failed to load car status data from {file_path}: {e}")
             raise DatabaseError(f"Failed to load car status data: {e}")
 
-    def move_reference_data(self, source_table, target_table, source_columns, target_columns, transformations=None):
+    def move_reference_data(self, source_table, target_table, source_columns, target_columns, last_sync_time,
+                            last_updated_field):
         """
-        Copies and transforms reference data from a source table to a target table.
-
-        Args:
-            source_table (str): Name of the source table (e.g., "dl.model").
-            target_table (str): Name of the target table (e.g., "dwh.model").
-            source_columns (list): Column names in the source table (e.g., ["model_id", "model_name", "make_id"]).
-            target_columns (list): Column names in the target table (e.g., ["id", "model_name", "make_id"]).
-            transformations (dict): Transformations for specific columns
-                                    (e.g., {"model_id": lambda x: x + 1, "model_name": lambda x: x.upper()}).
+        Moves reference data from source_table to target_table with incremental loading using MERGE.
         """
         self.ensure_connection()
 
         try:
-            self.logger.info(f"Starting data transfer from {source_table} to {target_table}")
+            # Delta-Query basierend auf last_sync_time
+            if last_sync_time:
+                query = f"SELECT {', '.join(source_columns)} FROM {source_table} WHERE {last_updated_field} > %s"
+                self.cursor.execute(query, (last_sync_time,))
+            else:
+                query = f"SELECT {', '.join(source_columns)} FROM {source_table}"
+                self.cursor.execute(query)
 
-            # Extract data from the source table
-            query = f"SELECT DISTINCT {', '.join(source_columns)} FROM {source_table}"
-            self.cursor.execute(query)
             rows = self.cursor.fetchall()
-            self.logger.info(f"Fetched {len(rows)} rows from {source_table}")
 
-            # Transform and insert data into the target table
+            if not rows:
+                self.logger.info(f"No new or updated records found in {source_table}.")
+                return
+
+            # Daten übertragen
             for row in rows:
-                row_dict = dict(zip(source_columns, row))
+                source_data = dict(zip(source_columns, row))
 
-                # Apply transformations if defined
-                if transformations:
-                    for column, transform_func in transformations.items():
-                        if column in row_dict and transform_func:
-                            original_value = row_dict[column]
-                            row_dict[column] = transform_func(row_dict[column])
-                            self.logger.debug(
-                                f"Transformed {column}: {original_value} -> {row_dict[column]}"
-                            )
+                # Verwende eine MERGE-Abfrage, um Duplikate zu vermeiden
+                merge_query = f"""
+                    MERGE {target_table} AS target
+                    USING (SELECT {', '.join(['%s AS ' + col for col in target_columns])}) AS source
+                    ON (target.{target_columns[0]} = source.{target_columns[0]})  -- Match anhand des Primärschlüssels
+                    WHEN MATCHED THEN 
+                        UPDATE SET {', '.join([f'target.{col} = source.{col}' for col in target_columns[1:]])}  -- Update wenn es existiert
+                    WHEN NOT MATCHED THEN
+                        INSERT ({', '.join(target_columns)}) VALUES ({', '.join(['source.' + col for col in target_columns])});  -- Insert wenn es nicht existiert
+                """
+                self.cursor.execute(merge_query, tuple(row))
 
-                # Map source column values to target columns
-                target_row = {target_columns[i]: row_dict[col] for i, col in enumerate(source_columns)}
+            # Aktualisiere 'last_synced' in der Quelltabelle
+            if last_sync_time:
+                update_query = f"""
+                    UPDATE {source_table}
+                    SET {last_updated_field} = GETDATE()
+                    WHERE {last_updated_field} <= %s
+                """
+                self.cursor.execute(update_query, (last_sync_time,))
 
-                # Check if the entry already exists in the target table
-                lookup_query = f"SELECT 1 FROM {target_table} WHERE {target_columns[0]} = %s"
-                self.cursor.execute(lookup_query, (target_row[target_columns[0]],))
-                result = self.cursor.fetchone()
-
-                if not result:
-                    # Insert if the entry does not exist
-                    insert_query = f"INSERT INTO {target_table} ({', '.join(target_columns)}) VALUES ({', '.join(['%s'] * len(target_columns))})"
-                    self.cursor.execute(insert_query, tuple(target_row.values()))
-                    self.logger.info(f"Inserted row into {target_table}: {target_row}")
-                else:
-                    self.logger.debug(
-                        f"Row already exists in {target_table}: {target_row[target_columns[0]]}"
-                    )
-
-            # Commit changes
             self.conn.commit()
-            self.logger.info(f"Data transfer from {source_table} to {target_table} completed successfully")
 
         except Exception as e:
-            # Rollback changes in case of an error
             self.conn.rollback()
-            self.logger.error(
-                f"Failed to move reference data from {source_table} to {target_table}: {e}"
-            )
-            raise Exception(f"Failed to move reference data from {source_table} to {target_table}: {e}")
+            self.logger.error(f"Failed to move data from {source_table} to {target_table}: {e}")
+            raise
+
+    def get_last_sync_time(self, table_name):
+        """
+        Retrieves the last synchronization time for a table.
+
+        Args:
+            table_name (str): The name of the table to check.
+
+        Returns:
+            datetime: The last synchronization time, or None if no record exists.
+        """
+        self.ensure_connection()
+        query = "SELECT last_sync_time FROM dwh.sync_log WHERE table_name = %s"
+        self.cursor.execute(query, (table_name,))
+        result = self.cursor.fetchone()
+        return result[0] if result else None
+
+    def update_sync_time(self, table_name, sync_time):
+        """
+        Updates the sync time for a specific table in the sync log.
+
+        Args:
+            table_name (str): Name of the table to update.
+            sync_time (datetime): The new sync time.
+        """
+        self.ensure_connection()
+
+        try:
+            # Verwende MERGE, um den Synchronisationszeitpunkt zu aktualisieren oder einen neuen Eintrag zu erstellen
+            query = """
+            MERGE INTO dwh.sync_log AS target
+            USING (SELECT %s AS table_name, %s AS last_sync_time) AS source
+            ON target.table_name = source.table_name
+            WHEN MATCHED THEN
+                UPDATE SET last_sync_time = source.last_sync_time
+            WHEN NOT MATCHED THEN
+                INSERT (table_name, last_sync_time) VALUES (source.table_name, source.last_sync_time);
+            """
+            self.cursor.execute(query, (table_name, sync_time))
+            self.conn.commit()
+            self.logger.info(f"Sync log updated for table: {table_name}, time: {sync_time}")
+        except Exception as e:
+            self.conn.rollback()
+            self.logger.error(f"Failed to update sync log for table: {table_name}. Error: {e}")
+            raise
+
+    def update_last_synced(self, table_name, sync_time):
+        """
+        Aktualisiert die Spalte 'last_synced' in der Quelltabelle.
+
+        Args:
+            table_name (str): Name der Quelltabelle.
+            sync_time (datetime): Zeitstempel des letzten Syncs.
+        """
+        query = f"UPDATE {table_name} SET last_synced = %s"
+        self.cursor.execute(query, (sync_time,))
+        self.conn.commit()
+        self.logger.info(f"Updated last_synced for table {table_name} to {sync_time}.")
 
     def move_data_to_dwh(self, staging_table, dwh_table, transformations=None, source_id=None,
-                         delete_from_staging=False):
+                         delete_from_staging=False, last_sync_time=None, last_updated_field=None):
         """
         Transforms and moves data from the staging table to the Data Warehouse.
 
@@ -664,6 +709,8 @@ class Database:
             transformations (dict): Dictionary of transformations to apply to specific fields.
             source_id (int): ID representing the source of the data.
             delete_from_staging (bool): Whether to delete data from the staging table after processing.
+            last_sync_time (datetime): Timestamp of the last successful sync for incremental loading.
+            last_updated_field (str): Name of the field used to track updates in the source table.
 
         Raises:
             Exception: If the data transformation or movement process fails.
@@ -688,186 +735,176 @@ class Database:
 
         # Define the mapping for model transformations
         model_mapping = {
-            "3er-Reihe": "test",
-            "ID.7": "test",
-            "Ioniq 6": "test",
-            "CL-Klasse": "test",
-            "Range Rover": "test",
-            "C3 Picasso": "test",
-            "Seal U": "test",
-            "Crossland X": "test",
-            "SLK-Klasse": "test",
-            "RX-8": "test",
-            "R 19": "test",
-            "124 Spider": "test",
-            "Saratoga": "test",
-            "RX-7": "test",
-            "Vivaro-e": "test",
-            "ZS EV": "test",
-            "GLE-Klasse": "test",
-            "SLC-Klasse": "test",
-            "G-Klasse": "test",
-            "Model 3": "test",
-            "SLS AMG": "test",
-            "H-1": "test",
-            "Le Baron": "test",
-            "Trans Sport": "test",
-            "Serie 400": "test",
-            "SX4 S-Cross": "test",
-            "Xedos 9": "test",
-            "ID.5": "test",
-            "Santa Fe": "test",
-            "DS 3": "test",
-            "Model S": "test",
-            "C5 X": "test",
-            "488 GTB": "test",
-            "CLE-Klasse": "test",
-            "Xsara Picasso": "test",
-            "Vel Satis": "test",
-            "C4 Aircross": "test",
-            "Punto Evo": "test",
-            "200 SX": "test",
-            "Sigma": "test",
-            "A 310": "test",
-            "Wagon R": "test",
-            "5er-Reihe": "test",
-            "GLA-Klasse": "test",
-            "T-Cross": "test",
-            "Range Rover Evoque": "test",
-            "F-Pace": "test",
-            "Discovery Sport": "test",
-            "Grand C4 Spacetourer": "test",
-            "A4 allroad": "test",
-            "CX-30": "test",
-            "ZR-V": "test",
-            "F-Type": "test",
-            "Serie 700": "test",
-            "PT Cruiser": "test",
-            "CR-Z": "test",
-            "Morgan plus 4": "test",
-            "Aero Coupe": "test",
-            "Supra Katarga": "test",
-            "M-Klasse": "test",
-            "4er-Reihe": "test",
-            "Model X": "test",
-            "Altea XL": "test",
-            "S-Cross": "test",
-            "e-208": "test",
-            "Mustang Mach-E": "test",
-            "A6 allroad": "test",
-            "MG F": "test",
-            "R 11": "test",
-            "Fiorino Qubo": "test",
-            "Volkswagen CC": "test",
-            "e-tron GT": "test",
-            "Euniq 6": "test",
-            "370 Z": "test",
-            "Palio": "test",
-            "Hi Ace": "test",
-            "1542": "test",
-            "2er-Reihe": "test",
-            "ID.3": "test",
-            "8er-Reihe": "test",
-            "300 ZX": "test",
-            "Puch G": "test",
-            "MG TF": "test",
-            "C4 X": "test",
-            "R 5": "test",
-            "Serie 900": "test",
-            "Town Car": "test",
-            "Kalina": "test",
-            "T-Roc": "test",
-            "Grande Punto": "test",
-            "S-Klasse": "test",
-            "DS 5": "test",
-            "Käfer": "test",
-            "Serie 800": "test",
-            "350 Z": "test",
-            "Grand Espace": "test",
-            "iOn": "test",
-            "Alero": "test",
-            "Murciélago": "test",
-            "1er-Reihe": "test",
-            "e-tron": "test",
-            "CX-5": "test",
-            "D-Truck": "test",
-            "HR-V": "test",
-            "Transit Custom": "test",
-            "Eos": "test",
-            "Huracán": "test",
-            "Y / Ypsilon": "test",
-            "e-up!": "test",
-            "E-Klasse": "test",
-            "DS 7 Crossback": "test",
-            "S-MAX": "test",
-            "Ioniq 5": "test",
-            "CX-60": "test",
-            "300 C": "test",
-            "T-Klasse": "test",
-            "Morgan Aero 8": "test",
-            "C-Zero": "test",
-            "MX-6": "test",
-            "A-Klasse": "test",
-            "e-Niro": "test",
-            "CR-V": "test",
-            "ID. Buzz": "test",
-            "6er-Reihe": "test",
-            "9-3": "test",
-            "Yaris Cross": "test",
-            "1413": "test",
-            "EV3": "test",
-            "FR-V": "test",
-            "Serie 200": "test",
-            "300 M": "test",
-            "E-Truck": "test",
-            "Grand Cherokee": "test",
-            "Space Star": "test",
-            "I-Pace": "test",
-            "C4 Cactus": "test",
-            "V-Klasse": "test",
-            "Doblò": "test",
-            "CX-7": "test",
-            "SJ 413": "test",
-            "CLC-Klasse": "test",
-            "Kizashi": "test",
-            "Shuma": "test",
-            "CX-9": "test",
-            "599": "test",
-            "CLA-Klasse": "test",
-            "C4 Spacetourer": "test",
-            "M.GO": "test",
-            "MX-30": "test",
-            "SL-Klasse": "test",
-            "Coupé": "test",
-            "AMG GT": "test",
-            "up!": "test",
-            "GLS-Klasse": "test",
-            "488 Spider": "test",
-            "CX-80": "test",
-            "Urban Cruiser": "test",
-            "Morgan Roadster": "test",
-            "100 NX": "test",
-            "GT-R": "test",
-            "Morgan 4/4": "test",
-            "Grand Scénic": "test",
-            "Gran Turismo": "test",
-            "GLC-Klasse": "test",
-            "C-MAX": "test",
-            "Range Rover Velar": "test",
-            "Model Y": "test",
-            "R-Klasse": "test",
-            "S-Type": "test",
-            "GL-Klasse": "test",
-            "Grandland X": "test",
-            "GLK-Klasse": "test",
-            "e-Rifter": "test",
-            "Space Wagon": "test",
-            "Range Rover Sport": "test",
-            "F8 Tributo": "test",
-            "Mégane": "test",
-            "7er-Reihe": "test",
-            "C-HR": "test",
-            "Minauto": "test",
+            "3er-Reihe": "3er_reihe",
+            "ID.7": "id_7",
+            "Ioniq 6": "ioniq6",
+            "CL-Klasse": "cl_klasse",
+            "Range Rover": "range_rover",
+            "C3 Picasso": "c3_picasso",
+            "Seal U": "seal_u",
+            "Crossland X": "crossland_x",
+            "SLK-Klasse": "slk_klasse",
+            "RX-8": "rx_8",
+            "R 19": "r_19",
+            "124 Spider": "124_spider",
+            "Saratoga": "saratoga",
+            "RX-7": "rx_7",
+            "Vivaro-e": "vivaro_e",
+            "ZS EV": "zs_ev",
+            "GLE-Klasse": "gle_klasse",
+            "SLC-Klasse": "slc_klasse",
+            "G-Klasse": "g_klasse",
+            "Model 3": "model_3",
+            "SLS AMG": "sls_amg",
+            "H-1": "h_1",
+            "Le Baron": "le_baron",
+            "Trans Sport": "trans_sport",
+            "Serie 400": "serie_400",
+            "SX4 S-Cross": "sx4_s_cross",
+            "Xedos 9": "xedos_9",
+            "ID.5": "id_5",
+            "Santa Fe": "santa_fe",
+            "DS 3": "ds_3",
+            "Model S": "model_s",
+            "C5 X": "c5_x",
+            "488 GTB": "488_gtb",
+            "CLE-Klasse": "cle_klasse",
+            "Xsara Picasso": "xsara_picasso",
+            "Vel Satis": "vel_satis",
+            "C4 Aircross": "c4_aircross",
+            "Punto Evo": "punto_evo",
+            "200 SX": "200_sx",
+            "Sigma": "sigma",
+            "A 310": "a_310",
+            "Wagon R": "wagon_r",
+            "5er-Reihe": "5er_reihe",
+            "GLA-Klasse": "gla_klasse",
+            "T-Cross": "t_cross",
+            "Range Rover Evoque": "range_rover_evoque",
+            "F-Pace": "f_pace",
+            "Discovery Sport": "discovery_sport",
+            "Grand C4 Spacetourer": "grand_c4_spacetourer",
+            "A4 allroad": "a4_allroad",
+            "CX-30": "cx_30",
+            "ZR-V": "zr_v",
+            "F-Type": "f_type",
+            "Serie 700": "serie_700",
+            "PT Cruiser": "pt_cruiser",
+            "CR-Z": "cr_z",
+            "Morgan plus 4": "morgan_plus_4",
+            "Aero Coupe": "aero_coupe",
+            "Supra Katarga": "supra_katarga",
+            "M-Klasse": "m_klasse",
+            "4er-Reihe": "4er_reihe",
+            "Model X": "model_x",
+            "Altea XL": "altea_xl",
+            "S-Cross": "s_cross",
+            "e-208": "e_208",
+            "Mustang Mach-E": "mustang_mach_e",
+            "A6 allroad": "a6_allroad",
+            "MG F": "mg_f",
+            "R 11": "r_11",
+            "Fiorino Qubo": "fiorino_qubo",
+            "Volkswagen CC": "volkswagen_cc",
+            "e-tron GT": "e_tron_gt",
+            "Euniq 6": "euniq6",
+            "370 Z": "370_z",
+            "Hi Ace": "hi_ace",
+            "1542": "1542",
+            "2er-Reihe": "2er_reihe",
+            "ID.3": "id_3",
+            "8er-Reihe": "8er_reihe",
+            "300 ZX": "300_zx",
+            "Puch G": "puch_g",
+            "MG TF": "mg_tf",
+            "C4 X": "c4_x",
+            "R 5": "r_5",
+            "Serie 900": "serie_900",
+            "Town Car": "town_car",
+            "T-Roc": "t_roc",
+            "Grande Punto": "grande_punto",
+            "S-Klasse": "s_klasse",
+            "DS 5": "ds_5",
+            "Käfer": "kaefer",
+            "Serie 800": "serie_800",
+            "350 Z": "350_z",
+            "Grand Espace": "grand_espace",
+            "Murciélago": "murcielago",
+            "1er-Reihe": "1er_reihe",
+            "e-tron": "e_tron",
+            "CX-5": "cx_5",
+            "D-Truck": "d_truck",
+            "HR-V": "hr_v",
+            "Transit Custom": "transit_custom",
+            "Huracán": "huracan",
+            "Y / Ypsilon": "y_ypsilon",
+            "e-up!": "e_up",
+            "E-Klasse": "e_klasse",
+            "DS 7 Crossback": "ds_7_crossback",
+            "S-MAX": "s_max",
+            "Ioniq 5": "ioniq_5",
+            "CX-60": "cx_60",
+            "300 C": "300_c",
+            "T-Klasse": "t_klasse",
+            "Morgan Aero 8": "morgan_aero_8",
+            "C-Zero": "c_zero",
+            "MX-6": "mx_6",
+            "A-Klasse": "a_klasse",
+            "e-Niro": "e_niro",
+            "CR-V": "cr_v",
+            "ID. Buzz": "id_buzz",
+            "6er-Reihe": "6er_reihe",
+            "9-3": "9_3",
+            "Yaris Cross": "yaris_cross",
+            "FR-V": "fr_v",
+            "Serie 200": "serie_200",
+            "300 M": "300_m",
+            "E-Truck": "e_truck",
+            "Grand Cherokee": "grand_cherokee",
+            "Space Star": "space_star",
+            "I-Pace": "i_pace",
+            "C4 Cactus": "c4_cactus",
+            "V-Klasse": "v_klasse",
+            "Doblò": "doblo",
+            "CX-7": "cx_7",
+            "SJ 413": "sj_413",
+            "CLC-Klasse": "clc_klasse",
+            "CX-9": "cx_9",
+            "CLA-Klasse": "cla_klasse",
+            "C4 Spacetourer": "c4_spacetourer",
+            "M.GO": "m_go",
+            "MX-30": "mx_30",
+            "SL-Klasse": "sl_klasse",
+            "Coupé": "coupe",
+            "AMG GT": "amg_gt",
+            "up!": "up",
+            "GLS-Klasse": "gls_klasse",
+            "488 Spider": "488_spider",
+            "CX-80": "cx_80",
+            "Urban Cruiser": "urban_cruiser",
+            "Morgan Roadster": "morgan_roadster",
+            "100 NX": "100_nx",
+            "GT-R": "gt_r",
+            "Morgan 4/4": "morgan_44",
+            "Grand Scénic": "grand_scenic",
+            "Gran Turismo": "gran_turismo",
+            "GLC-Klasse": "glc_klasse",
+            "C-MAX": "c_max",
+            "Range Rover Velar": "range_rover_velar",
+            "Model Y": "model_y",
+            "R-Klasse": "r_klasse",
+            "S-Type": "s_type",
+            "GL-Klasse": "gl_klasse",
+            "Grandland X": "grandland_x",
+            "GLK-Klasse": "glk_klasse",
+            "e-Rifter": "e_rifter",
+            "Space Wagon": "space_wagon",
+            "Range Rover Sport": "range_rover_sport",
+            "F8 Tributo": "f8_tributo",
+            "Mégane": "megan",
+            "7er-Reihe": "7er_reihe",
+            "C-HR": "c_hr",
+            "Minauto": "minauto",
             "B-MAX": "test",
             "C3 Aircross": "test",
             "X-Bow": "test",
@@ -923,10 +960,24 @@ class Database:
         try:
             self.logger.info(f"Starting data transfer from {staging_table} to {dwh_table}")
 
-            # Extract data from the staging table
-            query = f"SELECT * FROM {staging_table}"
-            self.cursor.execute(query)
+            # Construct the query with incremental loading if last_sync_time is provided
+            if last_sync_time and last_updated_field:
+                query = f"SELECT * FROM {staging_table} WHERE {last_updated_field} > %s"
+                self.cursor.execute(query, (last_sync_time,))
+            else:
+                query = f"SELECT * FROM {staging_table}"
+                self.cursor.execute(query)
+
             rows = self.cursor.fetchall()
+
+            # Check if any rows are found
+            if not rows:
+                self.logger.info(f"No new or updated records found in {staging_table} since last sync.")
+                return  # Exit the function early if no rows are found
+
+            self.logger.info(f"Found {len(rows)} new or updated records in {staging_table} since last sync.")
+
+            # Get column names
             columns = [col[0] for col in self.cursor.description]
 
             for row in rows:
@@ -965,7 +1016,7 @@ class Database:
                     self.logger.warning(f"Unknown model '{model}' in row {row_dict['id']}, skipping.")
                     continue
 
-                model_id = self.lookup_or_insert("dwh.model", "model_name", transformed_model)
+                # model_id = self.lookup_or_insert("dwh.model", "model_name", transformed_model)
 
                 # Check if willhaben_id already exists in dwh.willwagen
                 query_check = f"SELECT 1 FROM {dwh_table} WHERE willhaben_id = %s"
@@ -979,7 +1030,7 @@ class Database:
                     "willhaben_id": row_dict["id"],
                     "source_id": source_id or 1,  # Default source ID if not provided
                     "make_id": make_id,
-                    "model_id": model_id,
+                    # "model_id": model_id,
                     "year_model": row_dict["year_model"],
                     "transmission_id": row_dict["transmission"],
                     "mileage": row_dict["mileage"],
