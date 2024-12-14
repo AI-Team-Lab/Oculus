@@ -123,7 +123,7 @@ class GebrauchtwagenData:
 
 def main():
     # Path to the CSV file (ensure this path is correct)
-    csv_file_path = os.path.join(os.getcwd(), 'model/output_api/gebrauchtwagen_data_122024.csv')
+    csv_file_path = os.path.join(os.getcwd(), 'model','output_api', 'gebrauchtwagen_data_122024.csv')
 
     # Create a database connection object
     db = DatabaseConnection()
