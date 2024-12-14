@@ -245,8 +245,14 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
             # Aktualisiere die sync_log-Tabelle mit dem aktuellen Zeitstempel
             db.update_sync_time(table["source_table"], datetime.now())
 
-        # Transformationen definieren
-        transformations = {
+        # Transformationen für dl.willhaben
+        transformations_willhaben = {
+            "make": lambda x: x.lower(),
+            "model": lambda x: x.lower(),
+        }
+
+        # Transformationen für dl.gebrauchtwagen
+        transformations_gebrauchtwagen = {
             "make": lambda x: x.lower(),
             "model": lambda x: x.lower(),
         }
@@ -256,13 +262,26 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
         db.move_data_to_dwh(
             staging_table="dl.willhaben",
             dwh_table="dwh.willwagen",
-            transformations=transformations,
+            transformations=transformations_willhaben,
             source_id=1,  # ID für die Datenquelle dl.willhaben
             delete_from_staging=delete_from_staging,
             last_sync_time=last_sync_time,
             last_updated_field="last_synced"
         )
         db.update_sync_time("dl.willhaben", datetime.now())
+
+        # Hauptdaten von dl.gebrauchtwagen nach dwh.willwagen verschieben
+        last_sync_time = db.get_last_sync_time("dl.gebrauchtwagen")
+        db.move_data_to_dwh(
+            staging_table="dl.gebrauchtwagen",
+            dwh_table="dwh.willwagen",
+            transformations=transformations_gebrauchtwagen,
+            source_id=2,  # ID für die Datenquelle dl.willhaben
+            delete_from_staging=delete_from_staging,
+            last_sync_time=last_sync_time,
+            last_updated_field="last_synced"
+        )
+        db.update_sync_time("dl.gebrauchtwagen", datetime.now())
 
         celery_logger.info(f"Task {task_id}: Data moved to DWH successfully.")
         return {"status": "success", "message": "Data moved to DWH successfully."}

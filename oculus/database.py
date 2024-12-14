@@ -988,205 +988,283 @@ class Database:
                             row_dict[key] = transform_func(row_dict[key])
                             self.logger.debug(f"Transformed {key}: {original_value} -> {row_dict[key]}")
 
-                # Transform car_type using the mapping
-                car_type = row_dict.get("car_type")  # Verwende get(), um mögliche KeyError zu vermeiden
-                transformed_car_type = car_type_mapping.get(car_type)
+                ###########################################
+                # Transform fields from dl.gebrauchtwagen #
+                ###########################################
 
-                if not transformed_car_type:
-                    self.logger.warning(
-                        f"Unknown car_type '{car_type}' in row {row_dict.get('id', 'unknown')}, skipping.")
-                    continue
+                if staging_table == "dl.gebrauchtwagen":
+                    # Lookup make_id
+                    make_id = self.lookup("dwh.make", "make_name", row_dict["make"])
+                    if not make_id:
+                        self.logger.error(
+                            f"Make '{row_dict['make']}' not found in dwh.make. Skipping row {row_dict['id']}.")
+                        continue
 
-                # Check if the transformed car_type exists in dwh.car_type
-                car_type_id = self.lookup("dwh.car_type", "type", transformed_car_type)
+                    ############################
+                    make = row_dict.get("make")
+                    transformed_make = make_mapping.get(make, make)
 
-                if not car_type_id:
-                    self.logger.error(
-                        f"Car type '{transformed_car_type}' not found in dwh.car_type. Skipping row {row_dict.get('id', 'unknown')}.")
-                    continue
+                    if not transformed_make:
+                        self.logger.warning(f"Unknown make '{make}' in row {row_dict.get('id', 'unknown')}, skipping.")
+                        continue
 
-                # Weiterverarbeitung mit validem car_type_id
+                    # Check if the transformed make exists in dwh.make
+                    make_id = self.lookup("dwh.make", "make_name", transformed_make)
 
-                # Transform make using the mapping
-                make = row_dict.get("make")  # Verwende get(), um mögliche KeyError zu vermeiden
-                transformed_make = make_mapping.get(make, make)
+                    if not make_id:
+                        self.logger.error(
+                            f"Make '{transformed_make}' not found in dwh.make. Skipping row {row_dict.get('id', 'unknown')}.")
+                        continue
 
-                if not transformed_make:
-                    self.logger.warning(f"Unknown make '{make}' in row {row_dict.get('id', 'unknown')}, skipping.")
-                    continue
+                    make_id = self.lookup("dwh.make", "make_name", transformed_make)
+                    ############################
 
-                # Check if the transformed make exists in dwh.make
-                make_id = self.lookup("dwh.make", "make_name", transformed_make)
+                    # Lookup model_id
+                    model_id = self.lookup("dwh.model", "model_name", row_dict["model"])
+                    if not model_id:
+                        self.logger.error(
+                            f"Model '{row_dict['model']}' not found in dwh.model. Skipping row {row_dict['id']}.")
+                        continue
 
-                if not make_id:
-                    self.logger.error(
-                        f"Make '{transformed_make}' not found in dwh.make. Skipping row {row_dict.get('id', 'unknown')}.")
-                    continue
+                    # Lookup engine_fuel_id
+                    engine_fuel_id = self.lookup("dwh.fuel", "fuel_type", row_dict["engine_fuel"])
+                    if not engine_fuel_id:
+                        self.logger.error(
+                            f"Fuel type '{row_dict['engine_fuel']}' not found in dwh.engine_fuel. Skipping row {row_dict['id']}.")
+                        continue
 
-                make_id = self.lookup("dwh.make", "make_name", transformed_make)
+                    self.logger.warning(f"ID: {row_dict['id']}")
 
-                # Transform model using the mapping
-                model = row_dict.get("model")  # Verwende get(), um mögliche KeyError zu vermeiden
-                transformed_model = model_mapping.get(model, model)
+                    # Transform data for dwh.willwagen
+                    transformed_willwagen = {
+                        "gw_guid": row_dict["id"],
+                        "source_id": source_id or 2,  # Default source ID if not provided
+                        "make_id": make_id,
+                        "model_id": model_id,
+                        "mileage": row_dict["mileage"],
+                        "power_in_kw": row_dict["engine_effect"],
+                        "engine_fuel_id": engine_fuel_id,
+                        "year_model": row_dict["year_model"],
+                        "price": row_dict["price"],
+                    }
 
-                if not transformed_model:
-                    self.logger.warning(f"Unknown model '{model}' in row {row_dict.get('id', 'unknown')}, skipping.")
-                    continue
+                    self.logger.debug(f"Inserting transformed_willwagen: {transformed_willwagen}")
+                    self.insert_into_table(dwh_table, transformed_willwagen, return_id=False)
 
-                # Check if the transformed model exists in dwh.model
-                model_id = self.lookup("dwh.model", "model_name", transformed_model)
-
-                if not model_id:
-                    self.logger.error(
-                        f"Model '{transformed_model}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
-                    continue
-
-                # Check if willhaben_id already exists in dwh.willwagen
-                query_check = f"SELECT 1 FROM {dwh_table} WHERE willhaben_id = %s"
-                self.cursor.execute(query_check, (row_dict["id"],))
-                if self.cursor.fetchone():
-                    # self.logger.warning(f"Duplicate willhaben_id '{row_dict['id']}' found, skipping row.")
-                    continue  # Skip the current row if it already exists
-
-                # Transform data for dwh.willwagen
-                transformed_willwagen = {
-                    "willhaben_id": row_dict["id"],
-                    "source_id": source_id or 1,  # Default source ID if not provided
-                    "make_id": make_id,
-                    "model_id": model_id,
-                    "year_model": row_dict["year_model"],
-                    "transmission_id": row_dict["transmission"],
-                    "mileage": row_dict["mileage"],
-                    "noofseats": row_dict["noofseats"],
-                    "power_in_kw": row_dict["engine_effect"],
-                    "engine_fuel_id": row_dict["engine_fuel"],
-                    "car_type_id": car_type_id,
-                    "no_of_owners": row_dict["no_of_owners"],
-                    "color_id": row_dict["color"],
-                    "condition_id": row_dict["condition"],
-                    "price": row_dict["price"],
-                    "warranty": row_dict["warranty"] == 1,  # True if 1
-                    "published": self.convert_unix_to_datetime(row_dict["published"]),
-                    "last_updated": self.convert_unix_to_datetime(row_dict["last_updated"]),
-                    "isprivate": row_dict["isprivate"] == 1,  # True if 1
-                }
-
-                self.logger.debug(f"Inserting transformed_willwagen: {transformed_willwagen}")
-                self.insert_into_table(dwh_table, transformed_willwagen, return_id=True)
-
-                try:
-                    # Deactivate foreign key constraint for dwh.location
-                    self.cursor.execute("ALTER TABLE dwh.location NOCHECK CONSTRAINT FK_location_willwagen")
+                    # Split location into postcode and city
+                    location_parts = row_dict["location"].split(" ", 1)
+                    postcode = location_parts[0] if len(location_parts) > 1 else None
+                    city = location_parts[1] if len(location_parts) > 1 else None
 
                     # Transform data for dwh.location
-                    coordinates = row_dict["coordinates"].split(",") if row_dict["coordinates"] else [None, None]
                     transformed_location = {
-                        "willhaben_id": row_dict["id"],  # ID aus dl.willhaben
-                        "address": row_dict["address"],
-                        "location": row_dict["location"],
-                        "postcode": row_dict["postcode"],
-                        "district": row_dict["district"],
-                        "state": row_dict["state"],
-                        "country": row_dict["country"],
-                        "longitude": coordinates[0],
-                        "latitude": coordinates[1],
+                        "gebrauchtwagen_guid": row_dict["id"],
+                        "postcode": postcode,
+                        "location": city,
                     }
 
-                    # Prüfe die Länge des Werts in der 'postcode'-Spalte
-                    max_length_postcode = 50  # Passe die maximale Länge an dein Schema an
-                    if transformed_location["postcode"] and len(transformed_location["postcode"]) > max_length_postcode:
+                    self.logger.debug(f"Inserting transformed_location: {transformed_location}")
+                    self.insert_into_table("dwh.location", transformed_location, return_id=False)
+
+                ######################################
+                # Transform fields from dl.willhaben #
+                ######################################
+
+                if staging_table == "dl.willhaben":
+                    # Transform car_type using the mapping
+                    car_type = row_dict.get("car_type")  # Verwende get(), um mögliche KeyError zu vermeiden
+                    transformed_car_type = car_type_mapping.get(car_type)
+
+                    if not transformed_car_type:
                         self.logger.warning(
-                            f"Truncated value for 'postcode': {transformed_location['postcode']} in row {row_dict['id']}. Skipping row."
-                        )
-                        continue  # Überspringe diese Zeile
+                            f"Unknown car_type '{car_type}' in row {row_dict.get('id', 'unknown')}, skipping.")
+                        continue
 
-                    # Insert transformed data into dwh.location
-                    self.insert_or_update("dwh.location", transformed_location, keys=["willhaben_id"])
+                    # Check if the transformed car_type exists in dwh.car_type
+                    car_type_id = self.lookup("dwh.car_type", "type", transformed_car_type)
 
-                    # Reactivate foreign key constraint for dwh.location
-                    self.cursor.execute("ALTER TABLE dwh.location CHECK CONSTRAINT FK_location_willwagen")
+                    if not car_type_id:
+                        self.logger.error(
+                            f"Car type '{transformed_car_type}' not found in dwh.car_type. Skipping row {row_dict.get('id', 'unknown')}.")
+                        continue
 
-                    # Deactivate foreign key constraint for dwh.specification
-                    self.cursor.execute("ALTER TABLE dwh.specification NOCHECK CONSTRAINT FK_specification_willwagen")
+                    # Transform make using the mapping
+                    make = row_dict.get("make")  # Verwende get(), um mögliche KeyError zu vermeiden
+                    transformed_make = make_mapping.get(make, make)
 
-                    # Transform data for dwh.specification
-                    transformed_specification = {
+                    if not transformed_make:
+                        self.logger.warning(f"Unknown make '{make}' in row {row_dict.get('id', 'unknown')}, skipping.")
+                        continue
+
+                    # Check if the transformed make exists in dwh.make
+                    make_id = self.lookup("dwh.make", "make_name", transformed_make)
+
+                    if not make_id:
+                        self.logger.error(
+                            f"Make '{transformed_make}' not found in dwh.make. Skipping row {row_dict.get('id', 'unknown')}.")
+                        continue
+
+                    make_id = self.lookup("dwh.make", "make_name", transformed_make)
+
+                    # Transform model using the mapping
+                    model = row_dict.get("model")  # Verwende get(), um mögliche KeyError zu vermeiden
+                    transformed_model = model_mapping.get(model, model)
+
+                    if not transformed_model:
+                        self.logger.warning(
+                            f"Unknown model '{model}' in row {row_dict.get('id', 'unknown')}, skipping.")
+                        continue
+
+                    # Check if the transformed model exists in dwh.model
+                    model_id = self.lookup("dwh.model", "model_name", transformed_model)
+
+                    if not model_id:
+                        self.logger.error(
+                            f"Model '{transformed_model}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
+                        continue
+
+                    # Check if willhaben_id already exists in dwh.willwagen
+                    query_check = f"SELECT 1 FROM {dwh_table} WHERE willhaben_id = %s"
+                    self.cursor.execute(query_check, (row_dict["id"],))
+                    if self.cursor.fetchone():
+                        self.logger.warning(f"Duplicate willhaben_id '{row_dict['id']}' found, skipping row.")
+                        continue  # Skip the current row if it already exists
+
+                    # Transform data for dwh.willwagen
+                    transformed_willwagen = {
                         "willhaben_id": row_dict["id"],
-                        "specification": row_dict["specification"],
+                        "source_id": source_id or 1,  # Default source ID if not provided
+                        "make_id": make_id,
+                        "model_id": model_id,
+                        "year_model": row_dict["year_model"],
+                        "transmission_id": row_dict["transmission"],
+                        "mileage": row_dict["mileage"],
+                        "noofseats": row_dict["noofseats"],
+                        "power_in_kw": row_dict["engine_effect"],
+                        "engine_fuel_id": row_dict["engine_fuel"],
+                        "car_type_id": car_type_id,
+                        "no_of_owners": row_dict["no_of_owners"],
+                        "color_id": row_dict["color"],
+                        "condition_id": row_dict["condition"],
+                        "price": row_dict["price"],
+                        "warranty": row_dict["warranty"] == 1,  # True if 1
+                        "published": self.convert_unix_to_datetime(row_dict["published"]),
+                        "last_updated": self.convert_unix_to_datetime(row_dict["last_updated"]),
+                        "isprivate": row_dict["isprivate"] == 1,  # True if 1
                     }
 
-                    # Insert transformed data into dwh.specification
-                    self.insert_into_table("dwh.specification", transformed_specification)
+                    self.logger.debug(f"Inserting transformed_willwagen: {transformed_willwagen}")
+                    self.insert_into_table(dwh_table, transformed_willwagen, return_id=True)
 
-                    # Reactivate foreign key constraint for dwh.specification
-                    self.cursor.execute("ALTER TABLE dwh.specification CHECK CONSTRAINT FK_specification_willwagen")
+                    try:
+                        # Transform data for dwh.location
+                        coordinates = row_dict["coordinates"].split(",") if row_dict["coordinates"] else [None, None]
+                        transformed_location = {
+                            "willhaben_id": row_dict["id"],  # ID aus dl.willhaben
+                            "address": row_dict["address"],
+                            "location": row_dict["location"],
+                            "postcode": row_dict["postcode"],
+                            "district": row_dict["district"],
+                            "state": row_dict["state"],
+                            "country": row_dict["country"],
+                            "longitude": coordinates[0],
+                            "latitude": coordinates[1],
+                        }
 
-                    # Deactivate foreign key constraint for dwh.description
-                    self.cursor.execute("ALTER TABLE dwh.description NOCHECK CONSTRAINT FK_description_willwagen")
+                        # Prüfe die Länge des Werts in der 'postcode'-Spalte
+                        max_length_postcode = 50  # Passe die maximale Länge an dein Schema an
+                        if transformed_location["postcode"] and len(
+                                transformed_location["postcode"]) > max_length_postcode:
+                            self.logger.warning(
+                                f"Truncated value for 'postcode': {transformed_location['postcode']} in row {row_dict['id']}. Skipping row."
+                            )
+                            continue  # Überspringe diese Zeile
 
-                    # Transform data for dwh.description
-                    transformed_description = {
-                        "willhaben_id": row_dict["id"],
-                        "description": row_dict["description"],
-                    }
+                        # Insert transformed data into dwh.location
+                        self.insert_or_update("dwh.location", transformed_location, keys=["willhaben_id"])
 
-                    # Insert transformed data into dwh.description
-                    self.insert_into_table("dwh.description", transformed_description)
+                        # Deactivate foreign key constraint for dwh.specification
+                        self.cursor.execute(
+                            "ALTER TABLE dwh.specification NOCHECK CONSTRAINT FK_specification_willwagen")
 
-                    # Reactivate foreign key constraint for dwh.description
-                    self.cursor.execute("ALTER TABLE dwh.description CHECK CONSTRAINT FK_description_willwagen")
+                        # Transform data for dwh.specification
+                        transformed_specification = {
+                            "willhaben_id": row_dict["id"],
+                            "specification": row_dict["specification"],
+                        }
 
-                    # Deactivate foreign key constraint for dwh.image_url
-                    self.cursor.execute("ALTER TABLE dwh.image_url NOCHECK CONSTRAINT FK_image_url_willwagen")
+                        # Insert transformed data into dwh.specification
+                        self.insert_into_table("dwh.specification", transformed_specification)
 
-                    # Transform data for dwh.image_url
-                    transformed_image_url = {
-                        "willhaben_id": row_dict["id"],
-                        "image_url": row_dict["main_image_url"],
-                    }
+                        # Reactivate foreign key constraint for dwh.specification
+                        self.cursor.execute("ALTER TABLE dwh.specification CHECK CONSTRAINT FK_specification_willwagen")
 
-                    # Insert transformed data into dwh.image_url
-                    self.insert_into_table("dwh.image_url", transformed_image_url)
+                        # Deactivate foreign key constraint for dwh.description
+                        self.cursor.execute("ALTER TABLE dwh.description NOCHECK CONSTRAINT FK_description_willwagen")
 
-                    # Reactivate foreign key constraint for dwh.image_url
-                    self.cursor.execute("ALTER TABLE dwh.image_url CHECK CONSTRAINT FK_image_url_willwagen")
+                        # Transform data for dwh.description
+                        transformed_description = {
+                            "willhaben_id": row_dict["id"],
+                            "description": row_dict["description"],
+                        }
 
-                    # Deactivate foreign key constraint for dwh.seo_url
-                    self.cursor.execute("ALTER TABLE dwh.seo_url NOCHECK CONSTRAINT FK_seo_url_willwagen")
+                        # Insert transformed data into dwh.description
+                        self.insert_into_table("dwh.description", transformed_description)
 
-                    # Transform data for dwh.seo_url
-                    transformed_seo_url = {
-                        "willhaben_id": row_dict["id"],
-                        "seo_url": row_dict["seo_url"],
-                    }
+                        # Reactivate foreign key constraint for dwh.description
+                        self.cursor.execute("ALTER TABLE dwh.description CHECK CONSTRAINT FK_description_willwagen")
 
-                    # Insert transformed data into dwh.seo_url
-                    self.insert_into_table("dwh.seo_url", transformed_seo_url)
+                        # Deactivate foreign key constraint for dwh.image_url
+                        self.cursor.execute("ALTER TABLE dwh.image_url NOCHECK CONSTRAINT FK_image_url_willwagen")
 
-                    # Reactivate foreign key constraint for dwh.seo_url
-                    self.cursor.execute("ALTER TABLE dwh.seo_url CHECK CONSTRAINT FK_seo_url_willwagen")
+                        # Transform data for dwh.image_url
+                        transformed_image_url = {
+                            "willhaben_id": row_dict["id"],
+                            "image_url": row_dict["main_image_url"],
+                        }
 
-                except Exception as e:
-                    self.logger.error(f"Failed to process row {row_dict['id']}: {e}")
-                    self.conn.rollback()  # Rollback if there's an error
-                    raise
-                finally:
-                    self.conn.commit()  # Commit changes
+                        # Insert transformed data into dwh.image_url
+                        self.insert_into_table("dwh.image_url", transformed_image_url)
 
-            # Optionally delete data from the staging table
-            if delete_from_staging:
-                delete_query = f"DELETE FROM {staging_table}"
-                self.cursor.execute(delete_query)
+                        # Reactivate foreign key constraint for dwh.image_url
+                        self.cursor.execute("ALTER TABLE dwh.image_url CHECK CONSTRAINT FK_image_url_willwagen")
 
-            # Update the `last_synced` field in the source table
-            if last_sync_time and last_updated_field:
-                update_query = f"""
-                UPDATE {staging_table}
-                SET {last_updated_field} = GETDATE()
-                WHERE {last_updated_field} IS NULL OR {last_updated_field} > %s
-                """
-                self.logger.debug(f"Updating last_synced field in {staging_table} with query: {update_query}")
-                self.cursor.execute(update_query, (last_sync_time,))
+                        # Deactivate foreign key constraint for dwh.seo_url
+                        self.cursor.execute("ALTER TABLE dwh.seo_url NOCHECK CONSTRAINT FK_seo_url_willwagen")
+
+                        # Transform data for dwh.seo_url
+                        transformed_seo_url = {
+                            "willhaben_id": row_dict["id"],
+                            "seo_url": row_dict["seo_url"],
+                        }
+
+                        # Insert transformed data into dwh.seo_url
+                        self.insert_into_table("dwh.seo_url", transformed_seo_url)
+
+                        # Reactivate foreign key constraint for dwh.seo_url
+                        self.cursor.execute("ALTER TABLE dwh.seo_url CHECK CONSTRAINT FK_seo_url_willwagen")
+
+                    except Exception as e:
+                        self.logger.error(f"Failed to process row {row_dict['id']}: {e}")
+                        self.conn.rollback()  # Rollback if there's an error
+                        raise
+                    finally:
+                        self.conn.commit()  # Commit changes
+
+                # Optionally delete data from the staging table
+                if delete_from_staging:
+                    delete_query = f"DELETE FROM {staging_table}"
+                    self.cursor.execute(delete_query)
+
+                # Update the `last_synced` field in the source table
+                if last_sync_time and last_updated_field:
+                    update_query = f"""
+                    UPDATE {staging_table}
+                    SET {last_updated_field} = GETDATE()
+                    WHERE {last_updated_field} IS NULL OR {last_updated_field} > %s
+                    """
+                    self.logger.debug(f"Updating last_synced field in {staging_table} with query: {update_query}")
+                    self.cursor.execute(update_query, (last_sync_time,))
 
             # Commit changes
             self.conn.commit()
