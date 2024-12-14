@@ -255,6 +255,7 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
         transformations_gebrauchtwagen = {
             "make": lambda x: x.lower(),
             "model": lambda x: x.lower(),
+            "engine_fuel": lambda x: x.lower()
         }
 
         # Hauptdaten von dl.willhaben nach dwh.willwagen verschieben

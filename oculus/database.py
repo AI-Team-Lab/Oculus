@@ -801,6 +801,12 @@ class Database:
 
                     # Transform model using the mapping
                     model = row_dict.get("model")
+
+                    # Check if model actually has a value (e.g., not None and not "")
+                    if not model or model.strip() == "":
+                        self.logger.warning(f"Empty model in row {row_dict.get('id', 'unknown')}, skipping.")
+                        continue
+
                     transformed_model = gebrauchtwagen_model_mapping.get(model, model)
 
                     if not transformed_model:
@@ -812,12 +818,17 @@ class Database:
                     model_id = self.lookup("dwh.model", "model_name", transformed_model)
 
                     if not model_id:
-                        self.logger.error(
-                            f"Model '{transformed_model}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
+                        # self.logger.error(f"Model '{transformed_model}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
 
                     # Transform engine_fuel using the mapping
                     engine_fuel = row_dict.get("engine_fuel")
+
+                    # Check if engine_fuel actually has a value (e.g., not None and not "")
+                    if not engine_fuel or engine_fuel.strip() == "":
+                        self.logger.warning(f"Empty engine_fuel in row {row_dict.get('id', 'unknown')}, skipping.")
+                        continue
+
                     transformed_engine_fuel = gebrauchtwagen_engine_fuel_mapping.get(engine_fuel, engine_fuel)
 
                     if not transformed_engine_fuel:
