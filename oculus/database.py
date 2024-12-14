@@ -15,6 +15,10 @@ class DatabaseError(Exception):
 
 class Database:
     def __init__(self):
+        """
+        Initializes the Database object, loads environment variables, sets up logging,
+        and attempts to load JSON mapping files for willhaben and gebrauchtwagen.
+        """
         self.logger = logging.getLogger("Database")
         self.logger.propagate = False
         self.conn = None
@@ -324,14 +328,12 @@ class Database:
         Raises:
             DatabaseError: If an error occurs during data insertion.
         """
-        # Ensure the database connection is active
         self.ensure_connection()
 
         try:
             # Clear the tables
             self.logger.info("Clearing tables for engine data...")
             try:
-                # Disable constraints temporarily
                 tables = [
                     "dl.engine_effect",
                     "dl.engine_fuel",
@@ -351,12 +353,10 @@ class Database:
                 self.logger.error(f"Failed to clear tables for engine data: {e}")
                 raise DatabaseError(f"Failed to clear tables: {e}")
 
-            # Load data from the JSON file
             self.logger.info("Loading engine data from JSON file...")
             with open(file_path, 'r', encoding='utf-8') as file:
                 engine_data = json.load(file)
 
-            # Insert data into respective tables
             self.logger.info("Inserting engine data into the database...")
             for key, values in engine_data.items():
                 if key == "engineeffect_from":
@@ -384,7 +384,6 @@ class Database:
                         insert_query = "INSERT INTO dl.wheel_drive (drive_type, id) VALUES (%s, %s)"
                         self.cursor.execute(insert_query, (drive_id, drive_type))
 
-            # Commit changes to the database
             self.conn.commit()
             self.logger.info(f"Engine data successfully loaded from {file_path} into the database.")
 
@@ -403,17 +402,13 @@ class Database:
         Raises:
             DatabaseError: If an error occurs during data insertion.
         """
-        # Ensure the database connection is active
         self.ensure_connection()
 
         try:
             # Clear the tables
             self.logger.info("Clearing tables for equipment data...")
             try:
-                # Define the tables to be cleared
                 tables = ["dl.equipment_search", "dl.exterior_colour_main", "dl.no_of_doors", "dl.no_of_seats"]
-
-                # Loop through each table, disable constraints, clear data, and re-enable constraints
                 for table in tables:
                     self.cursor.execute(f"ALTER TABLE {table} NOCHECK CONSTRAINT ALL")
                     self.cursor.execute(f"DELETE FROM {table}")
@@ -425,12 +420,10 @@ class Database:
                 self.logger.error(f"Failed to clear tables for equipment data: {e}")
                 raise DatabaseError(f"Failed to clear tables: {e}")
 
-            # Load data from the JSON file
             self.logger.info("Loading equipment data from JSON file...")
             with open(file_path, 'r', encoding='utf-8') as file:
                 equipment_data = json.load(file)
 
-            # Insert data into respective tables
             self.logger.info("Inserting equipment data into the database...")
             inserted_doors = set()  # Track inserted door IDs
             inserted_seats = set()  # Track inserted seat IDs
@@ -446,18 +439,17 @@ class Database:
                         self.cursor.execute(insert_query, (colour_id, colour))
                 elif key in ["no_of_doors_from", "no_of_doors_to"]:
                     for door_count, door_id in values.items():
-                        if door_id not in inserted_doors:  # Avoid duplicate entries
+                        if door_id not in inserted_doors:
                             insert_query = "INSERT INTO dl.no_of_doors (id, door_count) VALUES (%s, %s)"
                             self.cursor.execute(insert_query, (door_id, door_count))
                             inserted_doors.add(door_id)
                 elif key in ["no_of_seats_from", "no_of_seats_to"]:
                     for seat_count, seat_id in values.items():
-                        if seat_id not in inserted_seats:  # Avoid duplicate entries
+                        if seat_id not in inserted_seats:
                             insert_query = "INSERT INTO dl.no_of_seats (id, seat_count) VALUES (%s, %s)"
                             self.cursor.execute(insert_query, (seat_id, seat_count))
                             inserted_seats.add(seat_id)
 
-            # Commit changes to the database
             self.conn.commit()
             self.logger.info(f"Equipment data successfully loaded from {file_path} into the database.")
 
@@ -476,17 +468,13 @@ class Database:
         Raises:
             DatabaseError: If an error occurs during data insertion.
         """
-        # Ensure the database connection is active
         self.ensure_connection()
 
         try:
             # Clear the tables
             self.logger.info("Clearing tables for location data...")
             try:
-                # Define the tables to be cleared
                 tables = ["dl.area", "dl.location", "dl.dealer", "dl.periode"]
-
-                # Loop through each table, disable constraints, clear data, and re-enable constraints
                 for table in tables:
                     self.cursor.execute(f"ALTER TABLE {table} NOCHECK CONSTRAINT ALL")
                     self.cursor.execute(f"DELETE FROM {table}")
@@ -498,12 +486,10 @@ class Database:
                 self.logger.error(f"Failed to clear tables for location data: {e}")
                 raise DatabaseError(f"Failed to clear tables: {e}")
 
-            # Load data from the JSON file
             self.logger.info("Loading location data from JSON file...")
             with open(file_path, 'r', encoding='utf-8') as file:
                 location_data = json.load(file)
 
-            # Insert data into respective tables
             self.logger.info("Inserting location data into the database...")
 
             # Insert Locations and Areas
@@ -513,7 +499,6 @@ class Database:
                     self.logger.warning(f"Skipping location '{location_name}' due to missing ID.")
                     continue
 
-                # Insert Location
                 insert_location_query = "INSERT INTO dl.location (id, name) VALUES (%s, %s)"
                 self.cursor.execute(insert_location_query, (location_id, location_name))
 
@@ -532,7 +517,6 @@ class Database:
                 insert_periode_query = "INSERT INTO dl.periode (id, period) VALUES (%s, %s)"
                 self.cursor.execute(insert_periode_query, (period_id, period_name))
 
-            # Commit changes to the database
             self.conn.commit()
             self.logger.info(f"Location data successfully loaded from {file_path} into the database.")
 
@@ -551,17 +535,13 @@ class Database:
         Raises:
             DatabaseError: If an error occurs during data insertion.
         """
-        # Ensure the database connection is active
         self.ensure_connection()
 
         try:
             # Clear the tables
             self.logger.info("Clearing tables for car status data...")
             try:
-                # Define the tables to be cleared
                 tables = ["dl.car_type", "dl.motor_condition", "dl.warranty"]
-
-                # Loop through each table, disable constraints, clear data, and re-enable constraints
                 for table in tables:
                     self.cursor.execute(f"ALTER TABLE {table} NOCHECK CONSTRAINT ALL")
                     self.cursor.execute(f"DELETE FROM {table}")
@@ -573,12 +553,10 @@ class Database:
                 self.logger.error(f"Failed to clear tables for car status data: {e}")
                 raise DatabaseError(f"Failed to clear tables: {e}")
 
-            # Load data from the JSON file
             self.logger.info("Loading car status data from JSON file...")
             with open(file_path, 'r', encoding='utf-8') as file:
                 car_data = json.load(file)
 
-            # Insert data into respective tables
             self.logger.info("Inserting car status data into the database...")
 
             # Insert car types
@@ -591,12 +569,11 @@ class Database:
                 insert_motor_condition_query = "INSERT INTO dl.motor_condition (id, condition) VALUES (%s, %s)"
                 self.cursor.execute(insert_motor_condition_query, (condition_id, condition_name))
 
-            # Insert warranty information
+            # Insert warranty
             for warranty_name, warranty_id in car_data.get("warranty", {}).items():
                 insert_warranty_query = "INSERT INTO dl.warranty (id, warranty_available) VALUES (%s, %s)"
                 self.cursor.execute(insert_warranty_query, (warranty_id, warranty_name))
 
-            # Commit changes to the database
             self.conn.commit()
             self.logger.info(f"Car status data successfully loaded from {file_path} into the database.")
 
@@ -608,12 +585,19 @@ class Database:
     def move_reference_data(self, source_table, target_table, source_columns, target_columns, last_sync_time,
                             last_updated_field):
         """
-        Moves reference data from source_table to target_table with incremental loading using MERGE.
+        Moves reference data from source_table to target_table using an incremental load approach via MERGE.
+
+        Args:
+            source_table (str): The name of the source (staging) table.
+            target_table (str): The name of the target (DWH) table.
+            source_columns (list): Columns to select from the source table.
+            target_columns (list): Corresponding columns in the target table.
+            last_sync_time (datetime): Timestamp for incremental loading. If None, load all data.
+            last_updated_field (str): Field in the source table used to track updates.
         """
         self.ensure_connection()
 
         try:
-            # Delta-Query basierend auf last_sync_time
             if last_sync_time:
                 query = f"SELECT {', '.join(source_columns)} FROM {source_table} WHERE {last_updated_field} > %s"
                 self.cursor.execute(query, (last_sync_time,))
@@ -627,23 +611,23 @@ class Database:
                 self.logger.info(f"No new or updated records found in {source_table}.")
                 return
 
-            # Daten übertragen
             for row in rows:
                 source_data = dict(zip(source_columns, row))
 
-                # Verwende eine MERGE-Abfrage, um Duplikate zu vermeiden
+                # Use MERGE to upsert data
                 merge_query = f"""
                     MERGE {target_table} AS target
                     USING (SELECT {', '.join(['%s AS ' + col for col in target_columns])}) AS source
-                    ON (target.{target_columns[0]} = source.{target_columns[0]})  -- Match anhand des Primärschlüssels
+                    ON (target.{target_columns[0]} = source.{target_columns[0]})
                     WHEN MATCHED THEN 
-                        UPDATE SET {', '.join([f'target.{col} = source.{col}' for col in target_columns[1:]])}  -- Update wenn es existiert
+                        UPDATE SET {', '.join([f'target.{col} = source.{col}' for col in target_columns[1:]])}
                     WHEN NOT MATCHED THEN
-                        INSERT ({', '.join(target_columns)}) VALUES ({', '.join(['source.' + col for col in target_columns])});  -- Insert wenn es nicht existiert
+                        INSERT ({', '.join(target_columns)}) 
+                        VALUES ({', '.join(['source.' + col for col in target_columns])});
                 """
                 self.cursor.execute(merge_query, tuple(row))
 
-            # Aktualisiere 'last_synced' in der Quelltabelle
+            # Update the `last_synced` field in the source table if needed
             if last_sync_time:
                 update_query = f"""
                     UPDATE {source_table}
@@ -661,13 +645,13 @@ class Database:
 
     def get_last_sync_time(self, table_name):
         """
-        Retrieves the last synchronization time for a table.
+        Retrieves the last synchronization time for a given table from dwh.sync_log.
 
         Args:
-            table_name (str): The name of the table to check.
+            table_name (str): The name of the table to check in the sync_log.
 
         Returns:
-            datetime: The last synchronization time, or None if no record exists.
+            datetime or None: The last synchronization timestamp, or None if no log record exists.
         """
         self.ensure_connection()
         query = "SELECT last_sync_time FROM dwh.sync_log WHERE table_name = %s"
@@ -677,16 +661,15 @@ class Database:
 
     def update_sync_time(self, table_name, sync_time):
         """
-        Updates the sync time for a specific table in the sync log.
+        Updates the sync time for a specific table in the dwh.sync_log table using a MERGE statement.
 
         Args:
-            table_name (str): Name of the table to update.
-            sync_time (datetime): The new sync time.
+            table_name (str): The name of the table whose sync time should be updated.
+            sync_time (datetime): The new sync timestamp.
         """
         self.ensure_connection()
 
         try:
-            # Verwende MERGE, um den Synchronisationszeitpunkt zu aktualisieren oder einen neuen Eintrag zu erstellen
             query = """
             MERGE INTO dwh.sync_log AS target
             USING (SELECT %s AS table_name, %s AS last_sync_time) AS source
@@ -706,11 +689,11 @@ class Database:
 
     def update_last_synced(self, table_name, sync_time):
         """
-        Aktualisiert die Spalte 'last_synced' in der Quelltabelle.
+        Updates the 'last_synced' column in the source table.
 
         Args:
-            table_name (str): Name der Quelltabelle.
-            sync_time (datetime): Zeitstempel des letzten Syncs.
+            table_name (str): Name of the source table.
+            sync_time (datetime): The last sync timestamp.
         """
         query = f"UPDATE {table_name} SET last_synced = %s"
         self.cursor.execute(query, (sync_time,))
@@ -739,7 +722,7 @@ class Database:
         try:
             self.logger.info(f"Starting data transfer from {staging_table} to {dwh_table}")
 
-            # Construct the query with incremental loading if last_sync_time is provided
+            # Construct the query for incremental loading if last_sync_time is provided
             if last_sync_time and last_updated_field:
                 query = f"SELECT * FROM {staging_table} WHERE {last_updated_field} > %s"
                 self.cursor.execute(query, (last_sync_time,))
@@ -749,14 +732,13 @@ class Database:
 
             rows = self.cursor.fetchall()
 
-            # Check if any rows are found
+            # If no rows, log and exit early
             if not rows:
                 self.logger.info(f"No new or updated records found in {staging_table} since last sync.")
-                return  # Exit the function early if no rows are found
+                return
 
             self.logger.info(f"Found {len(rows)} new or updated records in {staging_table} since last sync.")
 
-            # Get column names
             columns = [col[0] for col in self.cursor.description]
 
             for row in rows:
@@ -773,78 +755,61 @@ class Database:
                 ###########################################
                 # Transform fields from dl.gebrauchtwagen #
                 ###########################################
-
                 if staging_table == "dl.gebrauchtwagen":
-                    # Load mappings
                     gebrauchtwagen_make_mapping = self.gebrauchtwagen_mappings["gebrauchtwagen_make_mapping"]
                     gebrauchtwagen_model_mapping = self.gebrauchtwagen_mappings["gebrauchtwagen_model_mapping"]
                     gebrauchtwagen_engine_fuel_mapping = self.gebrauchtwagen_mappings[
                         "gebrauchtwagen_engine_fuel_mapping"]
 
-                    # Transform make using the mapping
+                    # Transform make
                     make = row_dict.get("make")
                     transformed_make = gebrauchtwagen_make_mapping.get(make, make)
-
                     if not transformed_make:
                         self.logger.warning(f"Unknown make '{make}' in row {row_dict.get('id', 'unknown')}, skipping.")
                         continue
 
-                    # Check if the transformed make exists in dwh.make
                     make_id = self.lookup("dwh.make", "make_name", transformed_make)
-
                     if not make_id:
                         self.logger.error(
                             f"Make '{transformed_make}' not found in dwh.make. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
 
-                    make_id = self.lookup("dwh.make", "make_name", transformed_make)
-
-                    # Transform model using the mapping
+                    # Transform model
                     model = row_dict.get("model")
-
-                    # Check if model actually has a value (e.g., not None and not "")
+                    # Check if model is not None or empty
                     if not model or model.strip() == "":
                         self.logger.warning(f"Empty model in row {row_dict.get('id', 'unknown')}, skipping.")
                         continue
 
                     transformed_model = gebrauchtwagen_model_mapping.get(model, model)
-
                     if not transformed_model:
                         self.logger.warning(
                             f"Unknown model '{model}' in row {row_dict.get('id', 'unknown')}, skipping.")
                         continue
 
-                    # Check if the transformed model exists in dwh.model
                     model_id = self.lookup("dwh.model", "model_name", transformed_model)
-
                     if not model_id:
-                        # self.logger.error(f"Model '{transformed_model}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
-                        continue
+                        continue  # skipping instead of logging error
 
-                    # Transform engine_fuel using the mapping
+                    # Transform engine_fuel
                     engine_fuel = row_dict.get("engine_fuel")
-
-                    # Check if engine_fuel actually has a value (e.g., not None and not "")
                     if not engine_fuel or engine_fuel.strip() == "":
                         self.logger.warning(f"Empty engine_fuel in row {row_dict.get('id', 'unknown')}, skipping.")
                         continue
 
                     transformed_engine_fuel = gebrauchtwagen_engine_fuel_mapping.get(engine_fuel, engine_fuel)
-
                     if not transformed_engine_fuel:
                         self.logger.warning(
                             f"Unknown engine_fuel '{engine_fuel}' in row {row_dict.get('id', 'unknown')}, skipping.")
                         continue
 
-                    # Check if the transformed engine_fuel exists in dwh.fuel
                     engine_fuel_id = self.lookup("dwh.fuel", "fuel_type", transformed_engine_fuel)
-
-                    if not model_id:
+                    if not engine_fuel_id:
                         self.logger.error(
-                            f"Model '{transformed_engine_fuel}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
+                            f"Engine fuel '{transformed_engine_fuel}' not found in dwh.fuel. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
 
-                    # Transform data for dwh.willwagen
+                    # Create the dictionary to insert into dwh.willwagen
                     transformed_willwagen = {
                         "gw_guid": row_dict["id"],
                         "source_id": source_id or 2,
@@ -860,12 +825,11 @@ class Database:
                     self.logger.debug(f"Inserting transformed_willwagen: {transformed_willwagen}")
                     self.insert_into_table(dwh_table, transformed_willwagen, return_id=False)
 
-                    # Split location into postcode and city
+                    # Handle location
                     location_parts = row_dict["location"].split(" ", 1)
                     postcode = location_parts[0] if len(location_parts) > 1 else None
                     city = location_parts[1] if len(location_parts) > 1 else None
 
-                    # Transform data for dwh.location
                     transformed_location = {
                         "gebrauchtwagen_guid": row_dict["id"],
                         "postcode": postcode,
@@ -878,73 +842,59 @@ class Database:
                 ######################################
                 # Transform fields from dl.willhaben #
                 ######################################
-
                 if staging_table == "dl.willhaben":
-                    # Load mappings
                     willhaben_make_mapping = self.willhaben_mappings["willhaben_make_mapping"]
                     willhaben_model_mapping = self.willhaben_mappings["willhaben_model_mapping"]
                     willhaben_car_type_mapping = self.willhaben_mappings["willhaben_car_type_mapping"]
 
-                    # Transform car_type using the mapping
-                    car_type = row_dict.get("car_type")  # Verwende get(), um mögliche KeyError zu vermeiden
+                    # Transform car_type
+                    car_type = row_dict.get("car_type")
                     transformed_car_type = willhaben_car_type_mapping.get(car_type)
-
                     if not transformed_car_type:
                         self.logger.warning(
                             f"Unknown car_type '{car_type}' in row {row_dict.get('id', 'unknown')}, skipping.")
                         continue
 
-                    # Check if the transformed car_type exists in dwh.car_type
                     car_type_id = self.lookup("dwh.car_type", "type", transformed_car_type)
-
                     if not car_type_id:
                         self.logger.error(
                             f"Car type '{transformed_car_type}' not found in dwh.car_type. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
 
-                    # Transform make using the mapping
-                    make = row_dict.get("make")  # Verwende get(), um mögliche KeyError zu vermeiden
+                    # Transform make
+                    make = row_dict.get("make")
                     transformed_make = willhaben_make_mapping.get(make, make)
-
                     if not transformed_make:
                         self.logger.warning(f"Unknown make '{make}' in row {row_dict.get('id', 'unknown')}, skipping.")
                         continue
 
-                    # Check if the transformed make exists in dwh.make
                     make_id = self.lookup("dwh.make", "make_name", transformed_make)
-
                     if not make_id:
                         self.logger.error(
                             f"Make '{transformed_make}' not found in dwh.make. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
 
-                    make_id = self.lookup("dwh.make", "make_name", transformed_make)
-
-                    # Transform model using the mapping
-                    model = row_dict.get("model")  # Verwende get(), um mögliche KeyError zu vermeiden
+                    # Transform model
+                    model = row_dict.get("model")
                     transformed_model = willhaben_model_mapping.get(model, model)
-
                     if not transformed_model:
                         self.logger.warning(
                             f"Unknown model '{model}' in row {row_dict.get('id', 'unknown')}, skipping.")
                         continue
 
-                    # Check if the transformed model exists in dwh.model
                     model_id = self.lookup("dwh.model", "model_name", transformed_model)
-
                     if not model_id:
                         self.logger.error(
                             f"Model '{transformed_model}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
 
-                    # Check if willhaben_id already exists in dwh.willwagen
+                    # Check for duplicate willhaben_id in dwh.willwagen
                     query_check = f"SELECT 1 FROM {dwh_table} WHERE willhaben_id = %s"
                     self.cursor.execute(query_check, (row_dict["id"],))
                     if self.cursor.fetchone():
                         self.logger.warning(f"Duplicate willhaben_id '{row_dict['id']}' found, skipping row.")
-                        continue  # Skip the current row if it already exists
+                        continue
 
-                    # Transform data for dwh.willwagen
                     transformed_willwagen = {
                         "willhaben_id": row_dict["id"],
                         "source_id": source_id or 1,
@@ -961,20 +911,20 @@ class Database:
                         "color_id": row_dict["color"],
                         "condition_id": row_dict["condition"],
                         "price": row_dict["price"],
-                        "warranty": row_dict["warranty"] == 1,  # True if 1
+                        "warranty": row_dict["warranty"] == 1,
                         "published": self.convert_unix_to_datetime(row_dict["published"]),
                         "last_updated": self.convert_unix_to_datetime(row_dict["last_updated"]),
-                        "isprivate": row_dict["isprivate"] == 1,  # True if 1
+                        "isprivate": row_dict["isprivate"] == 1,
                     }
 
                     self.logger.debug(f"Inserting transformed_willwagen: {transformed_willwagen}")
-                    self.insert_into_table(dwh_table, transformed_willwagen, return_id=True)
+                    inserted_id = self.insert_into_table(dwh_table, transformed_willwagen, return_id=True)
 
                     try:
-                        # Transform data for dwh.location
+                        # Transform location
                         coordinates = row_dict["coordinates"].split(",") if row_dict["coordinates"] else [None, None]
                         transformed_location = {
-                            "willhaben_id": row_dict["id"],  # ID aus dl.willhaben
+                            "willhaben_id": row_dict["id"],
                             "address": row_dict["address"],
                             "location": row_dict["location"],
                             "postcode": row_dict["postcode"],
@@ -985,102 +935,80 @@ class Database:
                             "latitude": coordinates[1],
                         }
 
-                        # Prüfe die Länge des Werts in der 'postcode'-Spalte
-                        max_length_postcode = 50  # Passe die maximale Länge an dein Schema an
+                        # Check length of the 'postcode' value
+                        max_length_postcode = 50
                         if transformed_location["postcode"] and len(
                                 transformed_location["postcode"]) > max_length_postcode:
                             self.logger.warning(
                                 f"Truncated value for 'postcode': {transformed_location['postcode']} in row {row_dict['id']}. Skipping row."
                             )
-                            continue  # Überspringe diese Zeile
+                            continue
 
-                        # Insert transformed data into dwh.location
                         self.insert_or_update("dwh.location", transformed_location, keys=["willhaben_id"])
 
-                        # Deactivate foreign key constraint for dwh.specification
+                        # Deactivate FK constraint for dwh.specification
                         self.cursor.execute(
                             "ALTER TABLE dwh.specification NOCHECK CONSTRAINT FK_specification_willwagen")
 
-                        # Transform data for dwh.specification
                         transformed_specification = {
                             "willhaben_id": row_dict["id"],
                             "specification": row_dict["specification"],
                         }
-
-                        # Insert transformed data into dwh.specification
                         self.insert_into_table("dwh.specification", transformed_specification)
-
-                        # Reactivate foreign key constraint for dwh.specification
                         self.cursor.execute("ALTER TABLE dwh.specification CHECK CONSTRAINT FK_specification_willwagen")
 
-                        # Deactivate foreign key constraint for dwh.description
+                        # Deactivate FK constraint for dwh.description
                         self.cursor.execute("ALTER TABLE dwh.description NOCHECK CONSTRAINT FK_description_willwagen")
 
-                        # Transform data for dwh.description
                         transformed_description = {
                             "willhaben_id": row_dict["id"],
                             "description": row_dict["description"],
                         }
-
-                        # Insert transformed data into dwh.description
                         self.insert_into_table("dwh.description", transformed_description)
-
-                        # Reactivate foreign key constraint for dwh.description
                         self.cursor.execute("ALTER TABLE dwh.description CHECK CONSTRAINT FK_description_willwagen")
 
-                        # Deactivate foreign key constraint for dwh.image_url
+                        # Deactivate FK constraint for dwh.image_url
                         self.cursor.execute("ALTER TABLE dwh.image_url NOCHECK CONSTRAINT FK_image_url_willwagen")
 
-                        # Transform data for dwh.image_url
                         transformed_image_url = {
                             "willhaben_id": row_dict["id"],
                             "image_url": row_dict["main_image_url"],
                         }
-
-                        # Insert transformed data into dwh.image_url
                         self.insert_into_table("dwh.image_url", transformed_image_url)
-
-                        # Reactivate foreign key constraint for dwh.image_url
                         self.cursor.execute("ALTER TABLE dwh.image_url CHECK CONSTRAINT FK_image_url_willwagen")
 
-                        # Deactivate foreign key constraint for dwh.seo_url
+                        # Deactivate FK constraint for dwh.seo_url
                         self.cursor.execute("ALTER TABLE dwh.seo_url NOCHECK CONSTRAINT FK_seo_url_willwagen")
 
-                        # Transform data for dwh.seo_url
                         transformed_seo_url = {
                             "willhaben_id": row_dict["id"],
                             "seo_url": row_dict["seo_url"],
                         }
-
-                        # Insert transformed data into dwh.seo_url
                         self.insert_into_table("dwh.seo_url", transformed_seo_url)
-
-                        # Reactivate foreign key constraint for dwh.seo_url
                         self.cursor.execute("ALTER TABLE dwh.seo_url CHECK CONSTRAINT FK_seo_url_willwagen")
 
                     except Exception as e:
                         self.logger.error(f"Failed to process row {row_dict['id']}: {e}")
-                        self.conn.rollback()  # Rollback if there's an error
+                        self.conn.rollback()
                         raise
                     finally:
-                        self.conn.commit()  # Commit changes
+                        self.conn.commit()
 
-                # Optionally delete data from the staging table
-                if delete_from_staging:
-                    delete_query = f"DELETE FROM {staging_table}"
-                    self.cursor.execute(delete_query)
+            # Optionally delete data from the staging table
+            if delete_from_staging:
+                delete_query = f"DELETE FROM {staging_table}"
+                self.cursor.execute(delete_query)
 
-                # Update the `last_synced` field in the source table
-                if last_sync_time and last_updated_field:
-                    update_query = f"""
-                    UPDATE {staging_table}
-                    SET {last_updated_field} = GETDATE()
-                    WHERE {last_updated_field} IS NULL OR {last_updated_field} > %s
-                    """
-                    self.logger.debug(f"Updating last_synced field in {staging_table} with query: {update_query}")
-                    self.cursor.execute(update_query, (last_sync_time,))
+            # Update the `last_synced` field in the source table
+            if last_sync_time and last_updated_field:
+                update_query = f"""
+                UPDATE {staging_table}
+                SET {last_updated_field} = GETDATE()
+                WHERE {last_updated_field} IS NULL OR {last_updated_field} > %s
+                """
+                self.logger.debug(f"Updating last_synced field in {staging_table} with query: {update_query}")
+                self.cursor.execute(update_query, (last_sync_time,))
 
-            # Commit changes
             self.conn.commit()
             self.logger.info(f"Data transfer from {staging_table} to {dwh_table} completed successfully")
 
@@ -1091,21 +1019,36 @@ class Database:
 
     def lookup(self, table, column, value):
         """
-        Look up the ID for a value in a reference table.
+        Looks up the ID for a given value in a reference table. Returns None if not found.
+
+        Args:
+            table (str): The table name to look up.
+            column (str): The column name in the reference table.
+            value (str): The value to find in that column.
+
+        Returns:
+            int or None: The corresponding ID or None if not found.
         """
         if not value:
-            return None  # Indicate that the value is missing
-
+            return None
         self.cursor.execute(f"SELECT id FROM {table} WHERE {column} = %s", (value,))
         result = self.cursor.fetchone()
         if result:
-            return result[0]  # Return the ID if found
+            return result[0]
         else:
-            return None  # Return None if not found (without inserting)
+            return None
 
     def lookup_or_insert(self, table, column, value):
         """
-        Look up the ID for a value in a reference table or insert it if not found.
+        Looks up the ID for a given value in a reference table or inserts a new record if not found.
+
+        Args:
+            table (str): The table name to look up or insert.
+            column (str): The column name in the reference table.
+            value (str): The value to find or insert.
+
+        Returns:
+            int: The existing or newly inserted ID.
         """
         if not value:
             return None
@@ -1118,15 +1061,15 @@ class Database:
 
     def insert_into_table(self, table_name, data, return_id=False):
         """
-        Inserts data into the specified table.
+        Inserts a record into the specified table.
 
         Args:
             table_name (str): Name of the table to insert data into.
-            data (dict): Dictionary of column-value pairs to insert.
+            data (dict): A dictionary of column-value pairs to insert.
             return_id (bool): Whether to return the generated ID for the inserted row.
 
         Returns:
-            int: The generated ID if return_id is True; otherwise, None.
+            int or None: The generated ID if return_id=True, otherwise None.
 
         Raises:
             Exception: If the insertion fails.
@@ -1151,12 +1094,12 @@ class Database:
 
     def insert_or_update(self, table_name, data, keys):
         """
-        Inserts data into the specified table or updates it if a conflict occurs.
+        Inserts or updates data in the specified table using a MERGE statement.
 
         Args:
-            table_name (str): The name of the table to insert or update data.
-            data (dict): A dictionary where keys are column names and values are the corresponding values.
-            keys (list): A list of column names to check for conflicts (e.g., primary or unique keys).
+            table_name (str): The name of the table to insert or update.
+            data (dict): A dictionary of column-value pairs to insert or update.
+            keys (list): A list of column names that serve as primary or unique keys.
 
         Raises:
             Exception: If the operation fails.
@@ -1185,19 +1128,18 @@ class Database:
     @staticmethod
     def convert_unix_to_datetime(unix_time):
         """
-        Convert UNIX time (in seconds or milliseconds) to a timezone-aware UTC datetime object.
+        Converts UNIX time (in seconds or milliseconds) to a timezone-aware UTC datetime object.
 
         Args:
             unix_time (int): UNIX timestamp in seconds or milliseconds.
 
         Returns:
-            datetime: Timezone-aware UTC datetime object or None if unix_time is None or invalid.
+            datetime or None: Timezone-aware UTC datetime, or None if invalid or not provided.
         """
         if not unix_time:
             return None
 
         try:
-            # Convert UNIX time in milliseconds to seconds if needed
             if unix_time > 10 ** 10:  # Likely in milliseconds
                 unix_time /= 1000
 

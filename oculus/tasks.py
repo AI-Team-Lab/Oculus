@@ -19,7 +19,7 @@ celery.conf.update(
     task_track_started=True,
 )
 
-# Initialize Willhaben
+# Initialize the Willhaben class
 willhaben = Willhaben()
 
 
@@ -29,12 +29,12 @@ def fetch_cars_task(self, car_model_make=None, start_make=None):
     Celery task to fetch cars from Willhaben and save them to the database.
 
     Args:
-        self (Task): The task instance automatically passed by Celery.
-        car_model_make (str): Specific car make/model to fetch. If None, fetch all.
-        start_make (str): Starting make for fetching all cars. Ignored if `car_model_make` is provided.
+        self (Task): The Celery task instance.
+        car_model_make (str): Specific car make/model to fetch. If None, fetch all makes.
+        start_make (str): Starting make for iterating through all car makes. This is ignored if `car_model_make` is provided.
 
     Returns:
-        dict: Task result with success or failure details.
+        dict: Task result containing status and a message.
     """
     db = Database()
     start_time = datetime.now()
@@ -45,6 +45,7 @@ def fetch_cars_task(self, car_model_make=None, start_make=None):
         table_name = "dl.willhaben"
         celery_logger.info(f"Task {task_id} started at {start_time}. Make: {car_model_make or 'all'}")
 
+        # If a specific make is provided, fetch only that
         if car_model_make:
             celery_logger.info(f"Fetching cars for make: {car_model_make}")
             willhaben.process_cars(
@@ -56,6 +57,7 @@ def fetch_cars_task(self, car_model_make=None, start_make=None):
             celery_logger.info(f"Successfully fetched cars for make: {car_model_make}")
             return {"status": "success", "message": f"Fetched cars for make: {car_model_make}"}
 
+        # If a starting make is specified, iterate through all makes from that point onwards
         elif start_make:
             celery_logger.info(f"Fetching cars starting from make: {start_make}")
             all_makes = list(willhaben.car_data.keys())
@@ -72,6 +74,7 @@ def fetch_cars_task(self, car_model_make=None, start_make=None):
                 celery_logger.info(f"Completed fetching cars for make: {make}")
             return {"status": "success", "message": f"Fetched cars starting from make: {start_make}"}
 
+        # Otherwise, fetch cars for all makes
         else:
             celery_logger.info("Fetching cars for all makes.")
             result = willhaben.process_cars(
@@ -96,15 +99,15 @@ def fetch_cars_task(self, car_model_make=None, start_make=None):
 @celery.task(bind=True, max_retries=3, default_retry_delay=60)
 def periodic_fetch_task(self, periode=48, rows=200):
     """
-    Periodic task to fetch cars for a specific time range.
+    Periodic Celery task to fetch cars for a given time period in hours.
 
     Args:
-        self (Task): The task instance automatically passed by Celery.
-        periode (int): Number of hours to fetch cars for.
-        rows (int): Number of cars to fetch per page.
+        self (Task): The Celery task instance.
+        periode (int): Number of hours to fetch cars for (default 48).
+        rows (int): Number of cars to fetch per page (default 200).
 
     Returns:
-        dict: Summary of fetched data.
+        dict: A dictionary containing the status and a message about how many cars were fetched.
     """
     db = Database()
     start_time = datetime.now()
@@ -118,6 +121,7 @@ def periodic_fetch_task(self, periode=48, rows=200):
         db.connect()
         table_name = "dl.willhaben"
 
+        # Fetch cars page by page until no more results
         while True:
             result = willhaben.search_car(periode=periode, page=page, rows=rows)
 
@@ -156,6 +160,16 @@ def periodic_fetch_task(self, periode=48, rows=200):
 
 @celery.task(bind=True, max_retries=3, default_retry_delay=60)
 def move_data_to_dwh_task(self, delete_from_staging=False):
+    """
+    Celery task to move data from staging tables (dl.*) to the Data Warehouse (dwh.*).
+
+    Args:
+        self (Task): The Celery task instance.
+        delete_from_staging (bool): Whether to delete rows from the staging tables after moving.
+
+    Returns:
+        dict: A dictionary containing the status and a success message.
+    """
     db = Database()
     task_id = self.request.id
 
@@ -164,7 +178,7 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
 
         db.connect()
 
-        # Liste aller Tabellen für Delta-Laden
+        # List of tables for delta-load
         tables_to_sync = [
             {
                 "source_table": "dl.make",
@@ -231,7 +245,7 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
             }
         ]
 
-        # Delta-Laden für jede Tabelle
+        # Perform delta-load for each reference table
         for table in tables_to_sync:
             last_sync_time = db.get_last_sync_time(table["source_table"])
             db.move_reference_data(
@@ -242,42 +256,42 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
                 last_sync_time=last_sync_time,
                 last_updated_field=table["last_updated_field"]
             )
-            # Aktualisiere die sync_log-Tabelle mit dem aktuellen Zeitstempel
+            # Update the sync_log table with the current timestamp
             db.update_sync_time(table["source_table"], datetime.now())
 
-        # Transformationen für dl.willhaben
+        # Transformations for dl.willhaben
         transformations_willhaben = {
             "make": lambda x: x.lower(),
             "model": lambda x: x.lower(),
         }
 
-        # Transformationen für dl.gebrauchtwagen
+        # Transformations for dl.gebrauchtwagen
         transformations_gebrauchtwagen = {
             "make": lambda x: x.lower(),
             "model": lambda x: x.lower(),
             "engine_fuel": lambda x: x.lower()
         }
 
-        # Hauptdaten von dl.willhaben nach dwh.willwagen verschieben
+        # Move main data from dl.willhaben to dwh.willwagen
         last_sync_time = db.get_last_sync_time("dl.willhaben")
         db.move_data_to_dwh(
             staging_table="dl.willhaben",
             dwh_table="dwh.willwagen",
             transformations=transformations_willhaben,
-            source_id=1,  # ID für die Datenquelle dl.willhaben
+            source_id=1,
             delete_from_staging=delete_from_staging,
             last_sync_time=last_sync_time,
             last_updated_field="last_synced"
         )
         db.update_sync_time("dl.willhaben", datetime.now())
 
-        # Hauptdaten von dl.gebrauchtwagen nach dwh.willwagen verschieben
+        # Move main data from dl.gebrauchtwagen to dwh.willwagen
         last_sync_time = db.get_last_sync_time("dl.gebrauchtwagen")
         db.move_data_to_dwh(
             staging_table="dl.gebrauchtwagen",
             dwh_table="dwh.willwagen",
             transformations=transformations_gebrauchtwagen,
-            source_id=2,  # ID für die Datenquelle dl.willhaben
+            source_id=2,
             delete_from_staging=delete_from_staging,
             last_sync_time=last_sync_time,
             last_updated_field="last_synced"

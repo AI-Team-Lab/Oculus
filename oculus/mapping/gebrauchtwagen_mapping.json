@@ -1483,14 +1483,14 @@
     "tang": "tang"
   },
   "gebrauchtwagen_engine_fuel_mapping": {
-    "elektro/benzin": "test",
-    "elektro/diesel": "test",
-    "benzin": "test",
-    "erdgas (cng)": "test",
-    "wasserstoff": "test",
-    "diesel": "test",
-    "autogas (LPG)": "test",
-    "elektro": "test",
-    "sonstige": "test"
+    "elektro/benzin": "hybrid_electric_petrol",
+    "elektro/diesel": "hybrid_electric_diesel",
+    "benzin": "petrol",
+    "erdgas (cng)": "gas",
+    "wasserstoff": "hydrogen",
+    "diesel": "diesel",
+    "autogas (LPG)": "gas",
+    "elektro": "electric",
+    "sonstige": "sonstige"
   }
 }
