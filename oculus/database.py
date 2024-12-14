@@ -719,230 +719,227 @@ class Database:
 
         # Define the mapping for make transformations
         make_mapping = {
-            "Alfa Romeo": "alfa_romeo",
-            "Aston Martin": "aston_martin",
-            "Citroën": "citroen",
-            "Chevrolet / Daewoo": "chevrolet_daewoo",
-            "Land Rover": "land_rover",
-            "Mercedes-Benz": "merces_benz",
-            "Rolls-Royce": "rolls_royce",
-            "British Leyland": "british_leyland",
-            "Graf Carello": "graf_carello",
-            "DS Automobiles": "ds_automobiles",
-            "Skywell Automobile": "skywell_automobile",
-            "LYNK & Co": "lynk_&_co",
+            "alfa romeo": "alfa_romeo",
+            "aston martin": "aston_martin",
+            "citroën": "citroen",
+            "chevrolet / daewoo": "chevrolet_daewoo",
+            "land rover": "land_rover",
+            "mercedes-benz": "merceds_benz",
+            "rolls-royce": "rolls_royce",
+            "british leyland": "british_leyland",
+            "graf carello": "graf_carello",
+            "ds automobiles": "ds_automobiles",
+            "skywell automobile": "skywell_automobile",
+            "lynk & co": "lynk_&_co",
         }
 
         # Define the mapping for model transformations
         model_mapping = {
-            "3er-Reihe": "3er_reihe",
-            "ID.7": "id_7",
-            "Ioniq 6": "ioniq6",
-            "CL-Klasse": "cl_klasse",
-            "Range Rover": "range_rover",
-            "C3 Picasso": "c3_picasso",
-            "Seal U": "seal_u",
-            "Crossland X": "crossland_x",
-            "SLK-Klasse": "slk_klasse",
-            "RX-8": "rx_8",
-            "R 19": "r_19",
-            "124 Spider": "124_spider",
-            "Saratoga": "saratoga",
-            "RX-7": "rx_7",
-            "Vivaro-e": "vivaro_e",
-            "ZS EV": "zs_ev",
-            "GLE-Klasse": "gle_klasse",
-            "SLC-Klasse": "slc_klasse",
-            "G-Klasse": "g_klasse",
-            "Model 3": "model_3",
-            "SLS AMG": "sls_amg",
-            "H-1": "h_1",
-            "Le Baron": "le_baron",
-            "Trans Sport": "trans_sport",
-            "Serie 400": "serie_400",
-            "SX4 S-Cross": "sx4_s_cross",
-            "Xedos 9": "xedos_9",
-            "ID.5": "id_5",
-            "Santa Fe": "santa_fe",
-            "DS 3": "ds_3",
-            "Model S": "model_s",
-            "C5 X": "c5_x",
-            "488 GTB": "488_gtb",
-            "CLE-Klasse": "cle_klasse",
-            "Xsara Picasso": "xsara_picasso",
-            "Vel Satis": "vel_satis",
-            "C4 Aircross": "c4_aircross",
-            "Punto Evo": "punto_evo",
-            "200 SX": "200_sx",
-            "Sigma": "sigma",
-            "A 310": "a_310",
-            "Wagon R": "wagon_r",
-            "5er-Reihe": "5er_reihe",
-            "GLA-Klasse": "gla_klasse",
-            "T-Cross": "t_cross",
-            "Range Rover Evoque": "range_rover_evoque",
-            "F-Pace": "f_pace",
-            "Discovery Sport": "discovery_sport",
-            "Grand C4 Spacetourer": "grand_c4_spacetourer",
-            "A4 allroad": "a4_allroad",
-            "CX-30": "cx_30",
-            "ZR-V": "zr_v",
-            "F-Type": "f_type",
-            "Serie 700": "serie_700",
-            "PT Cruiser": "pt_cruiser",
-            "CR-Z": "cr_z",
-            "Morgan plus 4": "morgan_plus_4",
-            "Aero Coupe": "aero_coupe",
-            "Supra Katarga": "supra_katarga",
-            "M-Klasse": "m_klasse",
-            "4er-Reihe": "4er_reihe",
-            "Model X": "model_x",
-            "Altea XL": "altea_xl",
-            "S-Cross": "s_cross",
+            "3er-reihe": "3er_reihe",
+            "id.7": "id_7",
+            "ioniq 6": "ioniq6",
+            "cl-klasse": "cl_klasse",
+            "range rover": "range_rover",
+            "c3 picasso": "c3_picasso",
+            "seal u": "seal_u",
+            "crossland x": "crossland_x",
+            "slk-klasse": "slk_klasse",
+            "rx-8": "rx8",
+            "r 19": "r19",
+            "124 spider": "124_spider",
+            "saratoga": "saratoga",
+            "rx-7": "rx7",
+            "vivaro-e": "vivaro_e",
+            "zs ev": "zs_ev",
+            "gle-klasse": "gle_klasse",
+            "slc-klasse": "slc_klasse",
+            "g-klasse": "g_klasse",
+            "model 3": "model_3",
+            "sls amg": "sls_amg",
+            "h-1": "h1",
+            "le baron": "le_baron",
+            "trans sport": "trans_sport",
+            "serie 400": "serie_400",
+            "sx4 s-cross": "sx4_s_cross",
+            "xedos 9": "xedos9",
+            "id.5": "id_5",
+            "santa fe": "santa_fe",
+            "ds 3": "ds3",
+            "model s": "model_s",
+            "c5 x": "c5_x",
+            "488 gtb": "488_gtb",
+            "cle-klasse": "cle_klasse",
+            "xsara picasso": "xsara_picasso",
+            "vel satis": "vel_satis",
+            "c4 aircross": "c4_aircross",
+            "punto evo": "punto_evo",
+            "200 sx": "200sx",
+            "sigma": "sigma",
+            "a 310": "a310",
+            "wagon r": "wagon_r",
+            "5er-reihe": "5er_reihe",
+            "gla-klasse": "gla_klasse",
+            "t-cross": "t_cross",
+            "range rover evoque": "range_rover_evoque",
+            "f-pace": "f_pace",
+            "discovery sport": "discovery_sport",
+            "grand c4 spacetourer": "grand_c4_spacetourer",
+            "a4 allroad": "a4_allroad",
+            "cx-30": "cx30",
+            "zr-v": "zrv",
+            "f-type": "f_type",
+            "serie 700": "serie_700",
+            "pt cruiser": "pt_cruiser",
+            "cr-z": "crz",
+            "morgan plus 4": "morgan_plus_4",
+            "aero coupe": "aero_coupe",
+            "supra katarga": "supra_katarga",
+            "m-klasse": "m_klasse",
+            "4er-reihe": "4er_reihe",
+            "model x": "model_x",
+            "altea xl": "altea_xl",
+            "s-cross": "s_cross",
             "e-208": "e_208",
-            "Mustang Mach-E": "mustang_mach_e",
-            "A6 allroad": "a6_allroad",
-            "MG F": "mg_f",
-            "R 11": "r_11",
-            "Fiorino Qubo": "fiorino_qubo",
-            "Volkswagen CC": "volkswagen_cc",
-            "e-tron GT": "e_tron_gt",
-            "Euniq 6": "euniq6",
-            "370 Z": "370_z",
-            "Hi Ace": "hi_ace",
+            "mustang mach-e": "mustang_mach_e",
+            "a6 allroad": "a6_allroad",
+            "mg f": "mg_f",
+            "r 11": "r11",
+            "fiorino qubo": "fiorino_qubo",
+            "volkswagen cc": "volkswagen_cc",
+            "e-tron gt": "e_tron_gt",
+            "euniq 6": "euniq6",
+            "370 z": "370z",
+            "hi ace": "hi_ace",
             "1542": "1542",
-            "2er-Reihe": "2er_reihe",
-            "ID.3": "id_3",
-            "8er-Reihe": "8er_reihe",
-            "300 ZX": "300_zx",
-            "Puch G": "puch_g",
-            "MG TF": "mg_tf",
-            "C4 X": "c4_x",
-            "R 5": "r_5",
-            "Serie 900": "serie_900",
-            "Town Car": "town_car",
-            "T-Roc": "t_roc",
-            "Grande Punto": "grande_punto",
-            "S-Klasse": "s_klasse",
-            "DS 5": "ds_5",
-            "Käfer": "kaefer",
-            "Serie 800": "serie_800",
-            "350 Z": "350_z",
-            "Grand Espace": "grand_espace",
-            "Murciélago": "murcielago",
-            "1er-Reihe": "1er_reihe",
+            "2er-reihe": "2er_reihe",
+            "id.3": "id_3",
+            "8er-reihe": "8er_reihe",
+            "300 zx": "300zx",
+            "puch g": "puch_g",
+            "mg tf": "mg_tf",
+            "c4 x": "c4_x",
+            "r 5": "r5",
+            "serie 900": "serie_900",
+            "town car": "town_car",
+            "t-roc": "t_roc",
+            "grande punto": "grande_punto",
+            "s-klasse": "s_klasse",
+            "ds 5": "ds5",
+            "käfer": "kaefer",
+            "serie 800": "serie_800",
+            "350 z": "350z",
+            "grand espace": "grand_espace",
+            "murciélago": "murcielago",
+            "1er-reihe": "1er_reihe",
             "e-tron": "e_tron",
-            "CX-5": "cx_5",
-            "D-Truck": "d_truck",
-            "HR-V": "hr_v",
-            "Transit Custom": "transit_custom",
-            "Huracán": "huracan",
-            "Y / Ypsilon": "y_ypsilon",
+            "cx-5": "cx5",
+            "d-truck": "d_truck",
+            "hr-v": "hrv",
+            "transit custom": "transit_custom",
+            "huracán": "huracan",
+            "y / ypsilon": "ypsilon",
             "e-up!": "e_up",
-            "E-Klasse": "e_klasse",
-            "DS 7 Crossback": "ds_7_crossback",
-            "S-MAX": "s_max",
-            "Ioniq 5": "ioniq_5",
-            "CX-60": "cx_60",
-            "300 C": "300_c",
-            "T-Klasse": "t_klasse",
-            "Morgan Aero 8": "morgan_aero_8",
-            "C-Zero": "c_zero",
-            "MX-6": "mx_6",
-            "A-Klasse": "a_klasse",
-            "e-Niro": "e_niro",
-            "CR-V": "cr_v",
-            "ID. Buzz": "id_buzz",
-            "6er-Reihe": "6er_reihe",
+            "e-klasse": "e_klasse",
+            "ds 7 crossback": "ds7_crossback",
+            "s-max": "s_max",
+            "ioniq 5": "ioniq5",
+            "cx-60": "cx60",
+            "300 c": "300c",
+            "t-klasse": "t_klasse",
+            "morgan aero 8": "morgan_aero_8",
+            "c-zero": "c_zero",
+            "mx-6": "mx6",
+            "a-klasse": "a_klasse",
+            "e-niro": "e_niro",
+            "cr-v": "crv",
+            "id. buzz": "id_buzz",
+            "6er-reihe": "6er_reihe",
             "9-3": "9_3",
-            "Yaris Cross": "yaris_cross",
-            "FR-V": "fr_v",
-            "Serie 200": "serie_200",
-            "300 M": "300_m",
-            "E-Truck": "e_truck",
-            "Grand Cherokee": "grand_cherokee",
-            "Space Star": "space_star",
-            "I-Pace": "i_pace",
-            "C4 Cactus": "c4_cactus",
-            "V-Klasse": "v_klasse",
-            "Doblò": "doblo",
-            "CX-7": "cx_7",
-            "SJ 413": "sj_413",
-            "CLC-Klasse": "clc_klasse",
-            "CX-9": "cx_9",
-            "CLA-Klasse": "cla_klasse",
-            "C4 Spacetourer": "c4_spacetourer",
-            "M.GO": "m_go",
-            "MX-30": "mx_30",
-            "SL-Klasse": "sl_klasse",
-            "Coupé": "coupe",
-            "AMG GT": "amg_gt",
+            "yaris cross": "yaris_cross",
+            "fr-v": "frv",
+            "serie 200": "serie_200",
+            "300 m": "300m",
+            "e-truck": "e_truck",
+            "grand cherokee": "grand_cherokee",
+            "space star": "space_star",
+            "i-pace": "i_pace",
+            "c4 cactus": "c4_cactus",
+            "v-klasse": "v_klasse",
+            "doblò": "doblo",
+            "cx-7": "cx7",
+            "sj 413": "sj413",
+            "clc-klasse": "clc_klasse",
+            "cx-9": "cx9",
+            "cla-klasse": "cla_klasse",
+            "c4 spacetourer": "c4_spacetourer",
+            "m.go": "mgo",
+            "mx-30": "mx30",
+            "sl-klasse": "sl_klasse",
+            "coupé": "coupe",
+            "amg gt": "amg_gt",
             "up!": "up",
-            "GLS-Klasse": "gls_klasse",
-            "488 Spider": "488_spider",
-            "CX-80": "cx_80",
-            "Urban Cruiser": "urban_cruiser",
-            "Morgan Roadster": "morgan_roadster",
-            "100 NX": "100_nx",
-            "GT-R": "gt_r",
-            "Morgan 4/4": "morgan_44",
-            "Grand Scénic": "grand_scenic",
-            "Gran Turismo": "gran_turismo",
-            "GLC-Klasse": "glc_klasse",
-            "C-MAX": "c_max",
-            "Range Rover Velar": "range_rover_velar",
-            "Model Y": "model_y",
-            "R-Klasse": "r_klasse",
-            "S-Type": "s_type",
-            "GL-Klasse": "gl_klasse",
-            "Grandland X": "grandland_x",
-            "GLK-Klasse": "glk_klasse",
-            "e-Rifter": "e_rifter",
-            "Space Wagon": "space_wagon",
-            "Range Rover Sport": "range_rover_sport",
-            "F8 Tributo": "f8_tributo",
-            "Mégane": "megan",
-            "7er-Reihe": "7er_reihe",
-            "C-HR": "c_hr",
-            "Minauto": "minauto",
-            "B-MAX": "test",
-            "C3 Aircross": "test",
-            "X-Bow": "test",
-            "C4 Picasso": "test",
-            "DS 4": "test",
-            "CRX / CR-X": "test",
-            "MX-3": "test",
-            "Lanos": "test",
-            "Gran Cabrio": "test",
-            "ETP 3": "test",
-            "Marvel R": "test",
-            "Qashqai": "test",
-            "ID.4": "test",
-            "X-TRAIL": "test",
-            "Scénic": "test",
-            "C5 Aircross": "test",
-            "E-Pace": "test",
-            "e-2008": "test",
-            "MX-5": "test",
-            "4-Runner": "test",
-            "Morgan plus 8": "test",
-            "X-Type": "test",
-            "3200 GT": "test",
-            "F8 Spider": "test",
-            "2207": "test",
-            "2286": "test",
-            "Brava": "test",
-            "B-Klasse": "test",
-            "C-Klasse": "test",
-            "500 E": "test",
-            "CLS-Klasse": "test",
-            "CX-3": "test",
-            "Land Cruiser": "test",
-            "Passat CC": "test",
-            "CLK-Klasse": "test",
-            "Corolla Cross": "test",
-            "9-5": "test",
-            "C-Crosser": "test",
+            "gls-klasse": "gls_klasse",
+            "488 spider": "488_spider",
+            "cx-80": "cx80",
+            "urban cruiser": "urban_cruiser",
+            "morgan roadster": "morgan_roadster",
+            "100 nx": "100nx",
+            "gt-r": "gtr",
+            "morgan 4/4": "morgan_4_4",
+            "grand scénic": "grand_scenic",
+            "gran turismo": "gran_turismo",
+            "glc-klasse": "glc_klasse",
+            "c-max": "c_max",
+            "range rover velar": "range_rover_velar",
+            "model y": "model_y",
+            "r-klasse": "r_klasse",
+            "s-type": "s_type",
+            "gl-klasse": "gl_klasse",
+            "grandland x": "grandland_x",
+            "glk-klasse": "glk_klasse",
+            "e-rifter": "e_rifter",
+            "space wagon": "space_wagon",
+            "range rover sport": "range_rover_sport",
+            "f8 tributo": "f8_tributo",
+            "mégane": "megane",
+            "7er-reihe": "7er_reihe",
+            "c-hr": "c_hr",
+            "minauto": "minauto",
+            "b-max": "b_max",
+            "c3 aircross": "c3_aircross",
+            "x-bow": "x_bow",
+            "c4 picasso": "c4_picasso",
+            "ds 4": "ds4",
+            "crx / cr-x": "crx",
+            "mx-3": "mx3",
+            "lanos": "lanos",
+            "gran cabrio": "gran_cabrio",
+            "etp 3": "etp_3",
+            "marvel r": "marvel_r",
+            "qashqai": "qashqai",
+            "id.4": "id_4",
+            "x-trail": "xtrail",
+            "scénic": "scenic",
+            "c5 aircross": "c5_aircross",
+            "e-pace": "e_pace",
+            "e-2008": "e_2008",
+            "mx-5": "mx5",
+            "4-runner": "4_runner",
+            "morgan plus 8": "morgan_plus_8",
+            "x-type": "x_type",
+            "3200 gt": "3200_gt",
+            "f8 spider": "f8_spider",
+            "b-klasse": "b_klasse",
+            "c-klasse": "c_klasse",
+            "500 e": "500e",
+            "cls-klasse": "cls_klasse",
+            "cx-3": "cx3",
+            "land cruiser": "land_cruiser",
+            "passat cc": "passat_cc",
+            "clk-klasse": "clk_klasse",
+            "corolla cross": "corolla_cross",
+            "9-5": "9_5",
+            "c-crosser": "c_crosser",
         }
 
         # Define the mapping for car_type transformations
@@ -992,37 +989,63 @@ class Database:
                             self.logger.debug(f"Transformed {key}: {original_value} -> {row_dict[key]}")
 
                 # Transform car_type using the mapping
-                car_type = row_dict["car_type"]
+                car_type = row_dict.get("car_type")  # Verwende get(), um mögliche KeyError zu vermeiden
                 transformed_car_type = car_type_mapping.get(car_type)
+
                 if not transformed_car_type:
-                    self.logger.warning(f"Unknown car_type '{car_type}' in row {row_dict['id']}, skipping.")
+                    self.logger.warning(
+                        f"Unknown car_type '{car_type}' in row {row_dict.get('id', 'unknown')}, skipping.")
                     continue
 
-                car_type_id = self.lookup_or_insert("dwh.car_type", "type", transformed_car_type)
+                # Check if the transformed car_type exists in dwh.car_type
+                car_type_id = self.lookup("dwh.car_type", "type", transformed_car_type)
+
+                if not car_type_id:
+                    self.logger.error(
+                        f"Car type '{transformed_car_type}' not found in dwh.car_type. Skipping row {row_dict.get('id', 'unknown')}.")
+                    continue
+
+                # Weiterverarbeitung mit validem car_type_id
 
                 # Transform make using the mapping
-                make = row_dict["make"]
+                make = row_dict.get("make")  # Verwende get(), um mögliche KeyError zu vermeiden
                 transformed_make = make_mapping.get(make, make)
+
                 if not transformed_make:
-                    self.logger.warning(f"Unknown make '{make}' in row {row_dict['id']}, skipping.")
+                    self.logger.warning(f"Unknown make '{make}' in row {row_dict.get('id', 'unknown')}, skipping.")
                     continue
 
-                make_id = self.lookup_or_insert("dwh.make", "make_name", transformed_make)
+                # Check if the transformed make exists in dwh.make
+                make_id = self.lookup("dwh.make", "make_name", transformed_make)
+
+                if not make_id:
+                    self.logger.error(
+                        f"Make '{transformed_make}' not found in dwh.make. Skipping row {row_dict.get('id', 'unknown')}.")
+                    continue
+
+                make_id = self.lookup("dwh.make", "make_name", transformed_make)
 
                 # Transform model using the mapping
-                model = row_dict["model"]
+                model = row_dict.get("model")  # Verwende get(), um mögliche KeyError zu vermeiden
                 transformed_model = model_mapping.get(model, model)
+
                 if not transformed_model:
-                    self.logger.warning(f"Unknown model '{model}' in row {row_dict['id']}, skipping.")
+                    self.logger.warning(f"Unknown model '{model}' in row {row_dict.get('id', 'unknown')}, skipping.")
                     continue
 
-                # model_id = self.lookup_or_insert("dwh.model", "model_name", transformed_model)
+                # Check if the transformed model exists in dwh.model
+                model_id = self.lookup("dwh.model", "model_name", transformed_model)
+
+                if not model_id:
+                    self.logger.error(
+                        f"Model '{transformed_model}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
+                    continue
 
                 # Check if willhaben_id already exists in dwh.willwagen
                 query_check = f"SELECT 1 FROM {dwh_table} WHERE willhaben_id = %s"
                 self.cursor.execute(query_check, (row_dict["id"],))
                 if self.cursor.fetchone():
-                    self.logger.warning(f"Duplicate willhaben_id '{row_dict['id']}' found, skipping row.")
+                    # self.logger.warning(f"Duplicate willhaben_id '{row_dict['id']}' found, skipping row.")
                     continue  # Skip the current row if it already exists
 
                 # Transform data for dwh.willwagen
@@ -1030,7 +1053,7 @@ class Database:
                     "willhaben_id": row_dict["id"],
                     "source_id": source_id or 1,  # Default source ID if not provided
                     "make_id": make_id,
-                    # "model_id": model_id,
+                    "model_id": model_id,
                     "year_model": row_dict["year_model"],
                     "transmission_id": row_dict["transmission"],
                     "mileage": row_dict["mileage"],
@@ -1068,6 +1091,14 @@ class Database:
                         "longitude": coordinates[0],
                         "latitude": coordinates[1],
                     }
+
+                    # Prüfe die Länge des Werts in der 'postcode'-Spalte
+                    max_length_postcode = 50  # Passe die maximale Länge an dein Schema an
+                    if transformed_location["postcode"] and len(transformed_location["postcode"]) > max_length_postcode:
+                        self.logger.warning(
+                            f"Truncated value for 'postcode': {transformed_location['postcode']} in row {row_dict['id']}. Skipping row."
+                        )
+                        continue  # Überspringe diese Zeile
 
                     # Insert transformed data into dwh.location
                     self.insert_or_update("dwh.location", transformed_location, keys=["willhaben_id"])
@@ -1165,6 +1196,20 @@ class Database:
             self.conn.rollback()
             self.logger.error(f"Failed to move data to DWH: {e}")
             raise Exception(f"Failed to move data to DWH: {e}")
+
+    def lookup(self, table, column, value):
+        """
+        Look up the ID for a value in a reference table.
+        """
+        if not value:
+            return None  # Indicate that the value is missing
+
+        self.cursor.execute(f"SELECT id FROM {table} WHERE {column} = %s", (value,))
+        result = self.cursor.fetchone()
+        if result:
+            return result[0]  # Return the ID if found
+        else:
+            return None  # Return None if not found (without inserting)
 
     def lookup_or_insert(self, table, column, value):
         """

@@ -24,7 +24,7 @@
       "crossover": 2210,
       "d_truck": 2211,
       "e_truck": 2212,
-      "miniauto": 2151,
+      "minauto": 2151,
       "sonstige": 2085
     }
   },
@@ -189,7 +189,7 @@
     "models": {
       "atto": 2285,
       "dolphin": 2350,
-      "etp": 2386,
+      "etp_3": 2386,
       "han": 2351,
       "seal": 2352,
       "seal_u": 2371,
@@ -270,6 +270,7 @@
       "le_baron": 1986,
       "pt_cruiser": 1088,
       "pacifica": 2179,
+      "saratoga": 1089,
       "sebring": 1090,
       "stratus": 1091,
       "voyager": 1094,
@@ -672,6 +673,7 @@
       "carnival": 1278,
       "ceed": 1767,
       "cerato": 1279,
+      "ev3": 2409,
       "ev6": 2230,
       "ev9": 2382,
       "magentis": 1281,
@@ -681,6 +683,7 @@
       "picanto": 1283,
       "proceed": 2194,
       "rio": 1285,
+      "schuma": 1287,
       "sorento": 1288,
       "soul": 1859,
       "sportage": 1289,
@@ -888,7 +891,7 @@
       "sonstige": 2165
     }
   },
-  "merces_benz": {
+  "merceds_benz": {
     "id": 1036,
     "models": {
       "190": 1382,
@@ -1046,7 +1049,7 @@
       "primastar": 1466,
       "primera": 1467,
       "pulsar": 2050,
-      "quashqai": 1774,
+      "qashqai": 1774,
       "silvia": 1469,
       "skyline": 2071,
       "sunny": 1470,
@@ -1135,7 +1138,7 @@
       "e_2008": 2308,
       "e_208": 2309,
       "e_rifter": 2311,
-      "ioniq": 1920,
+      "ion": 1920,
       "sonstige": 47
     }
   },
@@ -1364,7 +1367,7 @@
       "swace": 2208,
       "swift": 1632,
       "vitara": 1633,
-      "wagon_r+": 1634,
+      "wagon_r": 1634,
       "sonstige": 63
     }
   },
@@ -1487,7 +1490,7 @@
       "caravelle": 1687,
       "corrado": 1688,
       "crafter": 1745,
-      "eow": 1746,
+      "eos": 1746,
       "fox": 1690,
       "golf": 1691,
       "id_buzz": 2330,

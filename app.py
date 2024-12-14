@@ -179,7 +179,6 @@ def load_json():
     - entity: The name of the entity (e.g., 'car_data', 'car_engine', 'car_equipment', 'car_location', etc.)
     - file_path (optional): The path to the JSON file (defaults to a file located in 'oculus/data')
     """
-
     db = None
     entity = None
 
@@ -202,6 +201,24 @@ def load_json():
         # Database instance
         db = Database()
         db.connect()
+
+        # Define a mapping between entities and their respective tables in sync_log
+        table_mapping = {
+            "car_data": ["dl.make", "dl.model"],
+            "car_engine": ["dl.engine_effect", "dl.engine_fuel", "dl.battery_capacity", "dl.wltp_range",
+                           "dl.transmission", "dl.wheel_drive",
+                           ],
+
+            "car_equipment": ["dl.equipment_search", "dl.exterior_colour_main", "dl.no_of_doors", "dl.no_of_seats"],
+            "car_location": ["dl.area", "dl.location", "dl.dealer", "dl.periode"],
+            "car_status": ["dl.car_type", "dl.motor_condition", "dl.warranty"]
+        }
+
+        # Delete entries from `dwh.sync_log` for the corresponding tables
+        if entity in table_mapping:
+            for table_name in table_mapping[entity]:
+                db.cursor.execute("DELETE FROM dwh.sync_log WHERE table_name = %s", (table_name,))
+                db.logger.info(f"Deleted sync_log entry for table '{table_name}'.")
 
         # Call the entity-specific function
         try:
