@@ -629,7 +629,7 @@ class Database:
                 update_query = f"""
                     UPDATE {source_table}
                     SET {last_updated_field} = GETDATE()
-                    WHERE {last_updated_field} <= %s
+                    WHERE {last_updated_field} IS NULL OR {last_updated_field} > %s
                 """
                 self.cursor.execute(update_query, (last_sync_time,))
 
@@ -1146,6 +1146,16 @@ class Database:
             if delete_from_staging:
                 delete_query = f"DELETE FROM {staging_table}"
                 self.cursor.execute(delete_query)
+
+            # Update the `last_synced` field in the source table
+            if last_sync_time and last_updated_field:
+                update_query = f"""
+                UPDATE {staging_table}
+                SET {last_updated_field} = GETDATE()
+                WHERE {last_updated_field} IS NULL OR {last_updated_field} > %s
+                """
+                self.logger.debug(f"Updating last_synced field in {staging_table} with query: {update_query}")
+                self.cursor.execute(update_query, (last_sync_time,))
 
             # Commit changes
             self.conn.commit()
