@@ -1,0 +1,16 @@
+{
+  "gebrauchtwagen_make_mapping": {
+    "alfa romeo": "alfa_romeo"
+  },
+  "gebrauchtwagen_model_mapping": {
+    "3er-reihe": "3er_reihe",
+    "id.7": "id_7",
+    "ioniq 6": "ioniq6",
+    "cl-klasse": "cl_klasse",
+    "range rover": "range_rover",
+    "c3 picasso": "c3_picasso"
+  },
+  "gebrauchtwagen_engine_fuel_mapping": {
+    "Cabrio / Roadster": "convertible"
+  }
+}

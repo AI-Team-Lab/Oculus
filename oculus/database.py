@@ -30,6 +30,25 @@ class Database:
         self.password = os.getenv("DB_PASSWORD")
         self.database = os.getenv("DB_DATABASE")
 
+        # Load mappings
+        try:
+            json_path_willhaben = os.path.join(os.path.dirname(__file__), "mapping", "willhaben_mapping.json")
+            with open(json_path_willhaben, mode="r", encoding="utf-8") as f:
+                self.willhaben_mappings = json.load(f)
+            self.logger.info(f"Successfully loaded willhaben_mapping.json from {json_path_willhaben}")
+        except Exception as e:
+            self.logger.error(f"Error loading willhaben_mapping.json: {e}")
+            self.willhaben_mappings = {}
+
+        try:
+            json_path_gebrauchtwagen = os.path.join(os.path.dirname(__file__), "mapping", "gebrauchtwagen_mapping.json")
+            with open(json_path_gebrauchtwagen, mode="r", encoding="utf-8") as f:
+                self.gebrauchtwagen_mappings = json.load(f)
+            self.logger.info(f"Successfully loaded gebrauchtwagen_mapping.json from {json_path_gebrauchtwagen}")
+        except Exception as e:
+            self.logger.error(f"Error loading gebrauchtwagen_mapping.json: {e}")
+            self.gebrauchtwagen_mappings = {}
+
     def _load_env_file(self):
         """
         Loads the .env file and logs if it is missing or fails to load.
@@ -717,243 +736,6 @@ class Database:
         """
         self.ensure_connection()
 
-        # Define the mapping for make transformations
-        make_mapping = {
-            "alfa romeo": "alfa_romeo",
-            "aston martin": "aston_martin",
-            "citroën": "citroen",
-            "chevrolet / daewoo": "chevrolet_daewoo",
-            "land rover": "land_rover",
-            "mercedes-benz": "merceds_benz",
-            "rolls-royce": "rolls_royce",
-            "british leyland": "british_leyland",
-            "graf carello": "graf_carello",
-            "ds automobiles": "ds_automobiles",
-            "skywell automobile": "skywell_automobile",
-            "lynk & co": "lynk_&_co",
-        }
-
-        # Define the mapping for model transformations
-        model_mapping = {
-            "3er-reihe": "3er_reihe",
-            "id.7": "id_7",
-            "ioniq 6": "ioniq6",
-            "cl-klasse": "cl_klasse",
-            "range rover": "range_rover",
-            "c3 picasso": "c3_picasso",
-            "seal u": "seal_u",
-            "crossland x": "crossland_x",
-            "slk-klasse": "slk_klasse",
-            "rx-8": "rx8",
-            "r 19": "r19",
-            "124 spider": "124_spider",
-            "saratoga": "saratoga",
-            "rx-7": "rx7",
-            "vivaro-e": "vivaro_e",
-            "zs ev": "zs_ev",
-            "gle-klasse": "gle_klasse",
-            "slc-klasse": "slc_klasse",
-            "g-klasse": "g_klasse",
-            "model 3": "model_3",
-            "sls amg": "sls_amg",
-            "h-1": "h1",
-            "le baron": "le_baron",
-            "trans sport": "trans_sport",
-            "serie 400": "serie_400",
-            "sx4 s-cross": "sx4_s_cross",
-            "xedos 9": "xedos9",
-            "id.5": "id_5",
-            "santa fe": "santa_fe",
-            "ds 3": "ds3",
-            "model s": "model_s",
-            "c5 x": "c5_x",
-            "488 gtb": "488_gtb",
-            "cle-klasse": "cle_klasse",
-            "xsara picasso": "xsara_picasso",
-            "vel satis": "vel_satis",
-            "c4 aircross": "c4_aircross",
-            "punto evo": "punto_evo",
-            "200 sx": "200sx",
-            "sigma": "sigma",
-            "a 310": "a310",
-            "wagon r": "wagon_r",
-            "5er-reihe": "5er_reihe",
-            "gla-klasse": "gla_klasse",
-            "t-cross": "t_cross",
-            "range rover evoque": "range_rover_evoque",
-            "f-pace": "f_pace",
-            "discovery sport": "discovery_sport",
-            "grand c4 spacetourer": "grand_c4_spacetourer",
-            "a4 allroad": "a4_allroad",
-            "cx-30": "cx30",
-            "zr-v": "zrv",
-            "f-type": "f_type",
-            "serie 700": "serie_700",
-            "pt cruiser": "pt_cruiser",
-            "cr-z": "crz",
-            "morgan plus 4": "morgan_plus_4",
-            "aero coupe": "aero_coupe",
-            "supra katarga": "supra_katarga",
-            "m-klasse": "m_klasse",
-            "4er-reihe": "4er_reihe",
-            "model x": "model_x",
-            "altea xl": "altea_xl",
-            "s-cross": "s_cross",
-            "e-208": "e_208",
-            "mustang mach-e": "mustang_mach_e",
-            "a6 allroad": "a6_allroad",
-            "mg f": "mg_f",
-            "r 11": "r11",
-            "fiorino qubo": "fiorino_qubo",
-            "volkswagen cc": "volkswagen_cc",
-            "e-tron gt": "e_tron_gt",
-            "euniq 6": "euniq6",
-            "370 z": "370z",
-            "hi ace": "hi_ace",
-            "1542": "1542",
-            "2er-reihe": "2er_reihe",
-            "id.3": "id_3",
-            "8er-reihe": "8er_reihe",
-            "300 zx": "300zx",
-            "puch g": "puch_g",
-            "mg tf": "mg_tf",
-            "c4 x": "c4_x",
-            "r 5": "r5",
-            "serie 900": "serie_900",
-            "town car": "town_car",
-            "t-roc": "t_roc",
-            "grande punto": "grande_punto",
-            "s-klasse": "s_klasse",
-            "ds 5": "ds5",
-            "käfer": "kaefer",
-            "serie 800": "serie_800",
-            "350 z": "350z",
-            "grand espace": "grand_espace",
-            "murciélago": "murcielago",
-            "1er-reihe": "1er_reihe",
-            "e-tron": "e_tron",
-            "cx-5": "cx5",
-            "d-truck": "d_truck",
-            "hr-v": "hrv",
-            "transit custom": "transit_custom",
-            "huracán": "huracan",
-            "y / ypsilon": "ypsilon",
-            "e-up!": "e_up",
-            "e-klasse": "e_klasse",
-            "ds 7 crossback": "ds7_crossback",
-            "s-max": "s_max",
-            "ioniq 5": "ioniq5",
-            "cx-60": "cx60",
-            "300 c": "300c",
-            "t-klasse": "t_klasse",
-            "morgan aero 8": "morgan_aero_8",
-            "c-zero": "c_zero",
-            "mx-6": "mx6",
-            "a-klasse": "a_klasse",
-            "e-niro": "e_niro",
-            "cr-v": "crv",
-            "id. buzz": "id_buzz",
-            "6er-reihe": "6er_reihe",
-            "9-3": "9_3",
-            "yaris cross": "yaris_cross",
-            "fr-v": "frv",
-            "serie 200": "serie_200",
-            "300 m": "300m",
-            "e-truck": "e_truck",
-            "grand cherokee": "grand_cherokee",
-            "space star": "space_star",
-            "i-pace": "i_pace",
-            "c4 cactus": "c4_cactus",
-            "v-klasse": "v_klasse",
-            "doblò": "doblo",
-            "cx-7": "cx7",
-            "sj 413": "sj413",
-            "clc-klasse": "clc_klasse",
-            "cx-9": "cx9",
-            "cla-klasse": "cla_klasse",
-            "c4 spacetourer": "c4_spacetourer",
-            "m.go": "mgo",
-            "mx-30": "mx30",
-            "sl-klasse": "sl_klasse",
-            "coupé": "coupe",
-            "amg gt": "amg_gt",
-            "up!": "up",
-            "gls-klasse": "gls_klasse",
-            "488 spider": "488_spider",
-            "cx-80": "cx80",
-            "urban cruiser": "urban_cruiser",
-            "morgan roadster": "morgan_roadster",
-            "100 nx": "100nx",
-            "gt-r": "gtr",
-            "morgan 4/4": "morgan_4_4",
-            "grand scénic": "grand_scenic",
-            "gran turismo": "gran_turismo",
-            "glc-klasse": "glc_klasse",
-            "c-max": "c_max",
-            "range rover velar": "range_rover_velar",
-            "model y": "model_y",
-            "r-klasse": "r_klasse",
-            "s-type": "s_type",
-            "gl-klasse": "gl_klasse",
-            "grandland x": "grandland_x",
-            "glk-klasse": "glk_klasse",
-            "e-rifter": "e_rifter",
-            "space wagon": "space_wagon",
-            "range rover sport": "range_rover_sport",
-            "f8 tributo": "f8_tributo",
-            "mégane": "megane",
-            "7er-reihe": "7er_reihe",
-            "c-hr": "c_hr",
-            "minauto": "minauto",
-            "b-max": "b_max",
-            "c3 aircross": "c3_aircross",
-            "x-bow": "x_bow",
-            "c4 picasso": "c4_picasso",
-            "ds 4": "ds4",
-            "crx / cr-x": "crx",
-            "mx-3": "mx3",
-            "lanos": "lanos",
-            "gran cabrio": "gran_cabrio",
-            "etp 3": "etp_3",
-            "marvel r": "marvel_r",
-            "qashqai": "qashqai",
-            "id.4": "id_4",
-            "x-trail": "xtrail",
-            "scénic": "scenic",
-            "c5 aircross": "c5_aircross",
-            "e-pace": "e_pace",
-            "e-2008": "e_2008",
-            "mx-5": "mx5",
-            "4-runner": "4_runner",
-            "morgan plus 8": "morgan_plus_8",
-            "x-type": "x_type",
-            "3200 gt": "3200_gt",
-            "f8 spider": "f8_spider",
-            "b-klasse": "b_klasse",
-            "c-klasse": "c_klasse",
-            "500 e": "500e",
-            "cls-klasse": "cls_klasse",
-            "cx-3": "cx3",
-            "land cruiser": "land_cruiser",
-            "passat cc": "passat_cc",
-            "clk-klasse": "clk_klasse",
-            "corolla cross": "corolla_cross",
-            "9-5": "9_5",
-            "c-crosser": "c_crosser",
-        }
-
-        # Define the mapping for car_type transformations
-        car_type_mapping = {
-            "Cabrio / Roadster": "convertible",
-            "Klein-/ Kompaktwagen": "compact_car",
-            "Kleinbus": "minibus",
-            "Kombi / Family Van": "station_wagon",
-            "Limousine": "sedan",
-            "Mopedauto": "moped_car",
-            "Sportwagen / Coupé": "sports_car",
-            "SUV / Geländewagen": "suv"
-        }
-
         try:
             self.logger.info(f"Starting data transfer from {staging_table} to {dwh_table}")
 
@@ -993,16 +775,15 @@ class Database:
                 ###########################################
 
                 if staging_table == "dl.gebrauchtwagen":
-                    # Lookup make_id
-                    make_id = self.lookup("dwh.make", "make_name", row_dict["make"])
-                    if not make_id:
-                        self.logger.error(
-                            f"Make '{row_dict['make']}' not found in dwh.make. Skipping row {row_dict['id']}.")
-                        continue
+                    # Load mappings
+                    gebrauchtwagen_make_mapping = self.gebrauchtwagen_mappings["gebrauchtwagen_make_mapping"]
+                    gebrauchtwagen_model_mapping = self.gebrauchtwagen_mappings["gebrauchtwagen_model_mapping"]
+                    gebrauchtwagen_engine_fuel_mapping = self.gebrauchtwagen_mappings[
+                        "gebrauchtwagen_engine_fuel_mapping"]
 
-                    ############################
+                    # Transform make using the mapping
                     make = row_dict.get("make")
-                    transformed_make = make_mapping.get(make, make)
+                    transformed_make = gebrauchtwagen_make_mapping.get(make, make)
 
                     if not transformed_make:
                         self.logger.warning(f"Unknown make '{make}' in row {row_dict.get('id', 'unknown')}, skipping.")
@@ -1017,28 +798,45 @@ class Database:
                         continue
 
                     make_id = self.lookup("dwh.make", "make_name", transformed_make)
-                    ############################
 
-                    # Lookup model_id
-                    model_id = self.lookup("dwh.model", "model_name", row_dict["model"])
+                    # Transform model using the mapping
+                    model = row_dict.get("model")
+                    transformed_model = gebrauchtwagen_model_mapping.get(model, model)
+
+                    if not transformed_model:
+                        self.logger.warning(
+                            f"Unknown model '{model}' in row {row_dict.get('id', 'unknown')}, skipping.")
+                        continue
+
+                    # Check if the transformed model exists in dwh.model
+                    model_id = self.lookup("dwh.model", "model_name", transformed_model)
+
                     if not model_id:
                         self.logger.error(
-                            f"Model '{row_dict['model']}' not found in dwh.model. Skipping row {row_dict['id']}.")
+                            f"Model '{transformed_model}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
 
-                    # Lookup engine_fuel_id
-                    engine_fuel_id = self.lookup("dwh.fuel", "fuel_type", row_dict["engine_fuel"])
-                    if not engine_fuel_id:
+                    # Transform engine_fuel using the mapping
+                    engine_fuel = row_dict.get("engine_fuel")
+                    transformed_engine_fuel = gebrauchtwagen_engine_fuel_mapping.get(engine_fuel, engine_fuel)
+
+                    if not transformed_engine_fuel:
+                        self.logger.warning(
+                            f"Unknown engine_fuel '{engine_fuel}' in row {row_dict.get('id', 'unknown')}, skipping.")
+                        continue
+
+                    # Check if the transformed engine_fuel exists in dwh.fuel
+                    engine_fuel_id = self.lookup("dwh.fuel", "fuel_type", transformed_engine_fuel)
+
+                    if not model_id:
                         self.logger.error(
-                            f"Fuel type '{row_dict['engine_fuel']}' not found in dwh.engine_fuel. Skipping row {row_dict['id']}.")
+                            f"Model '{transformed_engine_fuel}' not found in dwh.model. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
-
-                    self.logger.warning(f"ID: {row_dict['id']}")
 
                     # Transform data for dwh.willwagen
                     transformed_willwagen = {
                         "gw_guid": row_dict["id"],
-                        "source_id": source_id or 2,  # Default source ID if not provided
+                        "source_id": source_id or 2,
                         "make_id": make_id,
                         "model_id": model_id,
                         "mileage": row_dict["mileage"],
@@ -1071,9 +869,14 @@ class Database:
                 ######################################
 
                 if staging_table == "dl.willhaben":
+                    # Load mappings
+                    willhaben_make_mapping = self.willhaben_mappings["willhaben_make_mapping"]
+                    willhaben_model_mapping = self.willhaben_mappings["willhaben_model_mapping"]
+                    willhaben_car_type_mapping = self.willhaben_mappings["willhaben_car_type_mapping"]
+
                     # Transform car_type using the mapping
                     car_type = row_dict.get("car_type")  # Verwende get(), um mögliche KeyError zu vermeiden
-                    transformed_car_type = car_type_mapping.get(car_type)
+                    transformed_car_type = willhaben_car_type_mapping.get(car_type)
 
                     if not transformed_car_type:
                         self.logger.warning(
@@ -1090,7 +893,7 @@ class Database:
 
                     # Transform make using the mapping
                     make = row_dict.get("make")  # Verwende get(), um mögliche KeyError zu vermeiden
-                    transformed_make = make_mapping.get(make, make)
+                    transformed_make = willhaben_make_mapping.get(make, make)
 
                     if not transformed_make:
                         self.logger.warning(f"Unknown make '{make}' in row {row_dict.get('id', 'unknown')}, skipping.")
@@ -1108,7 +911,7 @@ class Database:
 
                     # Transform model using the mapping
                     model = row_dict.get("model")  # Verwende get(), um mögliche KeyError zu vermeiden
-                    transformed_model = model_mapping.get(model, model)
+                    transformed_model = willhaben_model_mapping.get(model, model)
 
                     if not transformed_model:
                         self.logger.warning(
@@ -1133,7 +936,7 @@ class Database:
                     # Transform data for dwh.willwagen
                     transformed_willwagen = {
                         "willhaben_id": row_dict["id"],
-                        "source_id": source_id or 1,  # Default source ID if not provided
+                        "source_id": source_id or 1,
                         "make_id": make_id,
                         "model_id": model_id,
                         "year_model": row_dict["year_model"],
