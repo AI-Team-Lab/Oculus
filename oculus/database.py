@@ -809,6 +809,13 @@ class Database:
                             f"Engine fuel '{transformed_engine_fuel}' not found in dwh.fuel. Skipping row {row_dict.get('id', 'unknown')}.")
                         continue
 
+                    # Check for duplicate gw_guid in dwh.willwagen
+                    query_check = f"SELECT 1 FROM {dwh_table} WHERE gw_guid = %s"
+                    self.cursor.execute(query_check, (row_dict["id"],))
+                    if self.cursor.fetchone():
+                        self.logger.warning(f"Duplicate gw_guid '{row_dict['id']}' found, skipping row.")
+                        continue
+
                     # Create the dictionary to insert into dwh.willwagen
                     transformed_willwagen = {
                         "gw_guid": row_dict["id"],
