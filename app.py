@@ -1,4 +1,5 @@
 import os
+import json
 from flask import Flask, render_template, request, jsonify, g
 from oculus import Willhaben, Database, fetch_cars_task, move_data_to_dwh_task
 from oculus.logging import flask_logger
@@ -9,6 +10,29 @@ app = Flask(__name__)
 
 # Initialize Willhaben
 willhaben = Willhaben()
+
+
+# Laden der Mapping-Datei
+def load_mappings():
+    mapping_path = os.path.join(os.getcwd(), 'oculus', 'mapping', 'willhaben_mapping.json')
+    try:
+        with open(mapping_path, 'r', encoding='utf-8') as f:
+            mappings = json.load(f)
+        app.logger.info(f"Successfully loaded mappings from {mapping_path}")
+        return mappings
+    except FileNotFoundError:
+        app.logger.error(f"Mapping file {mapping_path} not found.")
+        return {}
+    except json.JSONDecodeError as e:
+        app.logger.error(f"Error decoding JSON from {mapping_path}: {e}")
+        return {}
+    except Exception as e:
+        app.logger.error(f"Unexpected error loading mappings: {e}")
+        return {}
+
+
+# Lade die Mappings beim Start der App
+mappings = load_mappings()
 
 
 def get_db():
@@ -36,41 +60,169 @@ def index():
     return render_template('index.html', cars=None)
 
 
-@app.route('/search', methods=['POST'])
+@app.route('/search', methods=['GET', 'POST'])
 def search():
-    query = request.form.get('query')
+    query = request.form.get('query') if request.method == 'POST' else request.args.get('query')
+    page = request.args.get('page', 1, type=int)
+    per_page = 30
+    offset = (page - 1) * per_page
+
     if query:
         db = get_db()
 
-        search_results = willhaben.search_car(keyword=query, rows=30)
-        cars = search_results.get('results', []) if search_results else []
+        # Erweiterte Suche: make_name, model_name, specification
+        sql = """
+            SELECT 
+                willhaben_id, 
+                make_name, 
+                model_name, 
+                specification, 
+                description, 
+                year_model, 
+                transmission_type,
+                mileage, 
+                noofseats, 
+                power_in_kw, 
+                fuel_type, 
+                type, 
+                no_of_owners, 
+                color_name, 
+                car_condition,
+                address, 
+                location, 
+                postcode, 
+                district, 
+                state, 
+                country, 
+                price, 
+                predicted_dealer_price,
+                warranty, 
+                isprivate, 
+                published, 
+                last_updated, 
+                image_url
+            FROM dwh.willhaben
+            WHERE LOWER(make_name) LIKE %s 
+               OR LOWER(model_name) LIKE %s
+               OR LOWER(specification) LIKE %s
+            ORDER BY last_updated DESC
+            OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
+        """
+        like_query = f"%{query.lower()}%"
+        db.cursor.execute(sql, (like_query, like_query, like_query, offset, per_page))
+        rows = db.cursor.fetchall()
 
-        return render_template('index.html', cars=cars, query=query)
-    return render_template('index.html', cars=None)
+        # Annahme: Die Spalten sind in der gleichen Reihenfolge wie im SELECT
+        cars = []
+        for row in rows:
+            (
+                willhaben_id,
+                make_name,
+                model_name,
+                specification,
+                description,
+                year_model,
+                transmission_type,
+                mileage,
+                noofseats,
+                power_in_kw,
+                fuel_type,
+                type_,
+                no_of_owners,
+                color_name,
+                car_condition,
+                address,
+                location,
+                postcode,
+                district,
+                state,
+                country,
+                price,
+                predicted_dealer_price,
+                warranty,
+                isprivate,
+                published,
+                last_updated,
+                image_url
+            ) = row
 
+            # Mapping der Felder
+            mapped_make = mappings.get('willhaben_make_mapping', {})
+            reverse_make_mapping = {v.lower(): k for k, v in mapped_make.items()}
+            mapped_make_name = reverse_make_mapping.get(make_name.lower(), make_name)
 
-# @app.route("/", methods=["GET"])
-# def index():
-#     """
-#     Renders the homepage with an optional search query for car listings.
-#     """
-#     keyword = request.args.get("keyword", None)
-#     results = []
-#
-#     if keyword:
-#         try:
-#             response = willhaben.search_car(keyword=keyword, rows=30)
-#
-#             if response and "advertSummaryList" in response and "advertSummary" in response["advertSummaryList"]:
-#                 for ad in response["advertSummaryList"]["advertSummary"]:
-#                     car_info = willhaben.extract_car_info(ad)
-#                     flask_logger.info(f"Fetching car with ID: {car_info['id']}")
-#                     results.append(car_info)
-#         except Exception as e:
-#             flask_logger.error(f"Error fetching cars: {e}")
-#             return render_template("index.html", results=[], error=str(e))
-#
-#     return render_template("index.html", results=results)
+            mapped_model = mappings.get('willhaben_model_mapping', {})
+            reverse_model_mapping = {v.lower(): k for k, v in mapped_model.items()}
+            mapped_model_name = reverse_model_mapping.get(model_name.lower(), model_name)
+
+            car_type_mapping = mappings.get('willhaben_car_type_mapping', {})
+            reverse_car_type_mapping = {v.lower(): k for k, v in car_type_mapping.items()}
+            mapped_car_type = reverse_car_type_mapping.get(type_.lower(), type_)
+
+            transmission_type_mapping = mappings.get('willhaben_transmission_type_mapping', {})
+            reverse_transmission_type_mapping = {v.lower(): k for k, v in transmission_type_mapping.items()}
+            mapped_transmission_type = reverse_transmission_type_mapping.get(transmission_type.lower(),
+                                                                             transmission_type)
+
+            fuel_type_mapping = mappings.get('willhaben_fuel_type_mapping', {})
+            reverse_fuel_type_mapping = {v.lower(): k for k, v in fuel_type_mapping.items()}
+            mapped_fuel_type = reverse_fuel_type_mapping.get(fuel_type.lower(), fuel_type)
+
+            color_mapping = mappings.get('willhaben_color_mapping', {})
+            reverse_color_mapping = {v.lower(): k for k, v in color_mapping.items()}
+            mapped_color = reverse_color_mapping.get(color_name.lower(), color_name)
+
+            condition_mapping = mappings.get('willhaben_condition_mapping', {})
+            reverse_condition_mapping = {v.lower(): k for k, v in condition_mapping.items()}
+            mapped_condition = reverse_condition_mapping.get(car_condition.lower(), car_condition)
+
+            # Formatierung und Standardwerte
+            formatted_published = published.strftime('%d.%m.%Y %H:%M') if published else "N/A"
+            formatted_last_updated = last_updated.strftime('%d.%m.%Y %H:%M') if last_updated else "N/A"
+
+            # Konvertiere `predicted_dealer_price` zu Float oder setze auf None
+            try:
+                if predicted_dealer_price is not None:
+                    predicted_dealer_price = float(predicted_dealer_price)
+                else:
+                    predicted_dealer_price = None
+            except (ValueError, TypeError):
+                predicted_dealer_price = None
+
+            # Hinzufügen des Fahrzeugs zur Liste
+            cars.append({
+                'willhaben_id': willhaben_id,
+                'make_name': mapped_make_name,
+                'model_name': mapped_model_name,
+                'specification': specification or "N/A",
+                'description': description or "N/A",
+                'year_model': year_model or "N/A",
+                'transmission_type': mapped_transmission_type or "N/A",
+                'mileage': mileage or "N/A",
+                'noofseats': noofseats or "N/A",
+                'power_in_kw': power_in_kw or "N/A",
+                'fuel_type': mapped_fuel_type or "N/A",
+                'type': mapped_car_type or "N/A",
+                'no_of_owners': no_of_owners if no_of_owners else "Unknown",
+                'color_name': mapped_color or "N/A",
+                'car_condition': mapped_condition or "N/A",
+                'address': address or "N/A",
+                'location': location or "N/A",
+                'postcode': postcode or "N/A",
+                'district': district or "N/A",
+                'state': state or "N/A",
+                'country': country or "N/A",
+                'price': price or "N/A",
+                'predicted_dealer_price': predicted_dealer_price,
+                'warranty': "Available" if warranty else "None",
+                'isprivate': "Yes" if isprivate else "No",
+                'published': formatted_published,
+                'last_updated': formatted_last_updated,
+                'image_url': image_url or "https://placehold.co/300x200?text=Kein+Bild"
+            })
+
+        return render_template('index.html', cars=cars, query=query, page=page)
+    return render_template('index.html', cars=None, query=None, page=None)
 
 
 @app.route("/fetch_cars", methods=["GET", "POST"])

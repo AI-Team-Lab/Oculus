@@ -261,8 +261,8 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
 
         # Transformations for dl.willhaben
         transformations_willhaben = {
-            "make": lambda x: x.lower(),
-            "model": lambda x: x.lower(),
+            # "make": lambda x: x.lower(),
+            # "model": lambda x: x.lower(),
         }
 
         # Transformations for dl.gebrauchtwagen

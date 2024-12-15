@@ -1,13 +1,11 @@
 {% extends "base.html" %}
 
-<!-- Main -->
 {% block main %}
     {% if query %}
         <div class="d-flex align-items-center">
             <h2>Suchergebnisse für "{{ query }}":</h2>
         </div>
     {% elif not cars %}
-        <!-- Zeigt das Logo auf der Startseite an, wenn keine Filme oder Kategorien ausgewählt sind -->
         <div class="d-flex justify-content-center align-items-center" style="height: 70vh;">
             <img src="{{ url_for('static', filename='images/oculus_large.png') }}" alt="Logo" class="img-fluid"
                  style="max-height: 70vh;">
@@ -15,46 +13,116 @@
     {% endif %}
 {% endblock %}
 
-<!-- Autoliste, wenn Ergebnisse vorhanden sind -->
 {% block cars %}
     {% if cars %}
-        {% for car in cars %}
-            <div class="col-md-12">
-                <div class="movie-card d-flex align-items-start">
-                    <div class="me-3">
-                        <!-- Autobild anzeigen oder Platzhalter -->
-                        <div style="width: 200px; height: 300px; overflow: hidden;">
-                            <img src="{{ 'https://image.tmdb.org/t/p/w500' + car.poster_path if car.poster_path else 'https://placehold.co/200x300?text=Kein+Bild+verfügbar' }}"
-                                 alt="Auto Cover" class="movie-poster"/>
-                            alt="{{ car.title }}" class="movie-poster"/>
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            {% for car in cars %}
+                <div class="col">
+                    <div class="card car-card h-100"> <!-- Hinzugefügte 'car-card' Klasse -->
+                        <!-- Bild im Kartenkopf mit der Klasse .card-img-top -->
+                        <img src="{{ car.image_url }}"
+                             class="card-img-top"
+                             alt="Car Image"
+                             onerror="this.src='https://placehold.co/300x200?text=Kein+Bild'">
+                        <div class="card-body">
+                            <!-- Titel größer und fett -->
+                            <h4 class="card-title fw-bold">{{ car.make_name }} {{ car.model_name }}</h4>
+                            <p class="card-text">
+                                <strong>Willhaben ID:</strong> {{ car.willhaben_id }}<br>
+                                <strong>Spezifikation:</strong> {{ car.specification or "N/A" }}<br>
+                                <!-- <strong>Beschreibung:</strong> {{ car.description or "N/A" }}<br> -->
+                                <strong>Baujahr:</strong> {{ car.year_model or "N/A" }}<br>
+                                <strong>Getriebeart:</strong> {{ car.transmission_type or "N/A" }}<br>
+                                <strong>Kilometerstand:</strong> {{ car.mileage or "N/A" }} km<br>
+                                <strong>Anzahl Sitze:</strong> {{ car.noofseats or "N/A" }}<br>
+                                <strong>Leistung in kW:</strong> {{ car.power_in_kw or "N/A" }}<br>
+                                <strong>Kraftstoff:</strong> {{ car.fuel_type or "N/A" }}<br>
+                                <strong>Fahrzeugtyp:</strong> {{ car.type or "N/A" }}<br>
+                                <strong>Anzahl Vorbesitzer:</strong>
+                                {% if car.no_of_owners != "Unknown" %}
+                                    {{ car.no_of_owners }}
+                                {% else %}
+                                    Unbekannt
+                                {% endif %}
+                                <br>
+                                <strong>Farbe:</strong> {{ car.color_name or "N/A" }}<br>
+                                <strong>Zustand:</strong> {{ car.car_condition or "N/A" }}<br>
+                                <strong>Adresse:</strong> {{ car.address or "N/A" }}<br>
+                                <strong>Ort:</strong> {{ car.location or "N/A" }}<br>
+                                <strong>PLZ:</strong> {{ car.postcode or "N/A" }}<br>
+                                <strong>Bezirk:</strong> {{ car.district or "N/A" }}<br>
+                                <strong>Bundesland:</strong> {{ car.state or "N/A" }}<br>
+                                <strong>Land:</strong> {{ car.country or "N/A" }}<br>
+                                <strong>Preis:</strong>
+                                {% if car.price != "N/A" %}
+                                    {{ "{:,.2f}".format(car.price) }} €
+                                {% else %}
+                                    N/A €
+                                {% endif %}
+                                <br>
+                                <strong>Prognostizierter Händlerpreis:</strong>
+                                {% if car.predicted_dealer_price %}
+                                    {{ "{:,.2f}".format(car.predicted_dealer_price) }} €
+                                {% else %}
+                                    N/A €
+                                {% endif %}
+                                <br>
+                                <strong>Garantie:</strong>
+                                {% if car.warranty == "Available" %}
+                                    Vorhanden
+                                {% else %}
+                                    Keine
+                                {% endif %}
+                                <br>
+                                <strong>Privatverkauf:</strong>
+                                {% if car.isprivate == "Yes" %}
+                                    Ja
+                                {% else %}
+                                    Nein
+                                {% endif %}
+                                <br>
+                                <strong>Erstveröffentlichung:</strong>
+                                {% if car.published != "N/A" %}
+                                    {{ car.published }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                                <br>
+                                <strong>Letztes Update:</strong>
+                                {% if car.last_updated != "N/A" %}
+                                    {{ car.last_updated }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                                <br>
+                            </p>
                         </div>
                     </div>
-                    <div>
-                        <h5>{{ car.title }}</h5>
-                        <p>Veröffentlichungsdatum: {{ car.release_date }}</p>
-                        <p>Bewertung: {{ (car.vote_average * 10) | round | int }}%</p>
-                        <p>Anzahl Bewertungen: {{ car.vote_count }}</p>
-
-                        <!-- Zeigt Genres an oder meldet "Nicht verfügbar" -->
-                        <p>
-                            Genres: {{ car.genres_names | join(', ') if car.genres_names else 'Nicht verfügbar' }}</p>
-
-                        <!-- Zeigt IMDb-ID mit Link an, wenn vorhanden -->
-                        <p>IMDb:
-                            {% if car.imdb_id %}
-                                <a href="https://www.imdb.com/title/{{ car.imdb_id }}"
-                                   target="_blank">{{ car.imdb_id }}</a>
-                            {% else %}
-                                Nicht verfügbar
-                            {% endif %}
-                        </p>
-                        <br>
-                        <p>{{ car.overview }}</p>
-                    </div>
                 </div>
-            </div>
-        {% endfor %}
-    {% elif (query or category) and not cars %}
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        <nav aria-label="Seiten-Navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?query={{ query }}&page={{ page - 1 }}" aria-label="Zurück">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                {% endif %}
+                <li class="page-item active"><a class="page-link" href="#">{{ page }}</a></li>
+                {% if cars|length >= 30 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?query={{ query }}&page={{ page + 1 }}" aria-label="Weiter">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% elif query and not cars %}
         <p>Keine Ergebnisse gefunden.</p>
     {% endif %}
 {% endblock %}

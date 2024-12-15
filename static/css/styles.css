@@ -23,20 +23,35 @@
     color: white;
 }
 
-/* Stil für eine benutzerdefinierte Filmkarte mit Rand, Radius, Polsterung und Abstand */
-.movie-card {
-    border: 2px solid #eabc4c;
-    border-radius: 10px;
-    padding: 10px;
-    margin-bottom: 10px;
+/* Stil für eine benutzerdefinierte Autokarte mit rotem Rand, Radius, Polsterung und Abstand */
+.car-card {
+    border: 2px solid #eabc4c; /* Roter Rand */
+    border-radius: 10px; /* Gerundete Ecken */
+    padding: 0; /* Entferne Innenabstand, um Überlauf zu verhindern */
+    margin-bottom: 10px; /* Abstand unterhalb jeder Karte */
+    overflow: hidden; /* Überlauf clippen, um den Border-Radius zu respektieren */
 }
 
-/* Stil für ein Filmcover mit festen Abmessungen und runden Ecken */
-.movie-poster {
+/* Stil für ein Autocover mit festen Abmessungen und vollständig gerundeten Ecken */
+.car-poster {
     width: 200px;
     height: 300px;
     object-fit: cover;
-    border-radius: 5px;
+    border-radius: 10px; /* Vollständig gerundete Ecken */
+}
+
+/* Die Klasse für das Bild im Kartenkopf, um die Größe einheitlich anzupassen und gerundete obere Ecken */
+.card-img-top {
+    height: 300px;
+    width: 100%;
+    object-fit: cover;
+    border-top-left-radius: 10px; /* Gerundete obere linke Ecke */
+    border-top-right-radius: 10px; /* Gerundete obere rechte Ecke */
+}
+
+/* Card body mit Padding */
+.card-body {
+    padding: 10px;
 }
 
 /* Tabelleneinstellungen: keine automatische Rand-Kollaps und feste Breite */
@@ -107,4 +122,24 @@
 /* Formular in der Navigationsleiste: Keine Dehnung */
 .navbar-custom form {
     flex-grow: 0;
+}
+
+/* Gleiche Farbgebung für Pagination-Buttons wie .btn-primary */
+.pagination .page-link {
+    background-color: #eabc4c; /* gleiche Hintergrundfarbe wie .btn-primary */
+    border-color: #eabc4c; /* gleicher Rand */
+    color: black; /* Textfarbe anpassen */
+}
+
+.pagination .page-link:hover {
+    background-color: #8c6f2b; /* Hover-Effekt wie .btn-primary:hover */
+    border-color: #8c6f2b;
+    color: white;
+}
+
+/* Aktiver Pagination-Button */
+.pagination .page-item.active .page-link {
+    background-color: #eabc4c;
+    border-color: #eabc4c;
+    color: #000000;
 }
