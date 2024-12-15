@@ -953,46 +953,30 @@ class Database:
 
                         self.insert_or_update("dwh.location", transformed_location, keys=["willhaben_id"])
 
-                        # Deactivate FK constraint for dwh.specification
-                        self.cursor.execute(
-                            "ALTER TABLE dwh.specification NOCHECK CONSTRAINT FK_specification_willwagen")
-
                         transformed_specification = {
                             "willhaben_id": row_dict["id"],
                             "specification": row_dict["specification"],
                         }
-                        self.insert_into_table("dwh.specification", transformed_specification)
-                        self.cursor.execute("ALTER TABLE dwh.specification CHECK CONSTRAINT FK_specification_willwagen")
 
-                        # Deactivate FK constraint for dwh.description
-                        self.cursor.execute("ALTER TABLE dwh.description NOCHECK CONSTRAINT FK_description_willwagen")
+                        self.insert_into_table("dwh.specification", transformed_specification)
 
                         transformed_description = {
                             "willhaben_id": row_dict["id"],
                             "description": row_dict["description"],
                         }
                         self.insert_into_table("dwh.description", transformed_description)
-                        self.cursor.execute("ALTER TABLE dwh.description CHECK CONSTRAINT FK_description_willwagen")
-
-                        # Deactivate FK constraint for dwh.image_url
-                        self.cursor.execute("ALTER TABLE dwh.image_url NOCHECK CONSTRAINT FK_image_url_willwagen")
 
                         transformed_image_url = {
                             "willhaben_id": row_dict["id"],
                             "image_url": row_dict["main_image_url"],
                         }
                         self.insert_into_table("dwh.image_url", transformed_image_url)
-                        self.cursor.execute("ALTER TABLE dwh.image_url CHECK CONSTRAINT FK_image_url_willwagen")
-
-                        # Deactivate FK constraint for dwh.seo_url
-                        self.cursor.execute("ALTER TABLE dwh.seo_url NOCHECK CONSTRAINT FK_seo_url_willwagen")
 
                         transformed_seo_url = {
                             "willhaben_id": row_dict["id"],
                             "seo_url": row_dict["seo_url"],
                         }
                         self.insert_into_table("dwh.seo_url", transformed_seo_url)
-                        self.cursor.execute("ALTER TABLE dwh.seo_url CHECK CONSTRAINT FK_seo_url_willwagen")
 
                     except Exception as e:
                         self.logger.error(f"Failed to process row {row_dict['id']}: {e}")
