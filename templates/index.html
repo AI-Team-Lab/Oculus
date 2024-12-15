@@ -1,48 +1,60 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Car Search</title>
-</head>
-<body>
-    <h1>Car Search Results</h1>
-    <form method="get" action="/">
-        <input type="text" name="keyword" placeholder="Enter a keyword" required>
-        <button type="submit">Search</button>
-    </form>
+{% extends "base.html" %}
 
-    {% if results %}
-    <table border="1">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Make</th>
-                <th>Model</th>
-                <th>Published</th>
-                <th>Description</th>
-                <th>Mileage</th>
-                <th>Price</th>
-                <th>Location</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for car in results %}
-            <tr>
-                <td>{{ car.id }}</td>
-                <td>{{ car.make }}</td>
-                <td>{{ car.model }}</td>
-                <td>{{ car.published }}</td>
-                <td>{{ car.description }}</td>
-                <td>{{ car.mileage }}</td>
-                <td>{{ car.price }}</td>
-                <td>{{ car.location }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p>No results found.</p>
+<!-- Main -->
+{% block main %}
+    {% if query %}
+        <div class="d-flex align-items-center">
+            <h2>Suchergebnisse für "{{ query }}":</h2>
+        </div>
+    {% elif not cars %}
+        <!-- Zeigt das Logo auf der Startseite an, wenn keine Filme oder Kategorien ausgewählt sind -->
+        <div class="d-flex justify-content-center align-items-center" style="height: 70vh;">
+            <img src="{{ url_for('static', filename='images/oculus_large.png') }}" alt="Logo" class="img-fluid"
+                 style="max-height: 70vh;">
+        </div>
     {% endif %}
-</body>
-</html>
+{% endblock %}
+
+<!-- Autoliste, wenn Ergebnisse vorhanden sind -->
+{% block cars %}
+    {% if cars %}
+        {% for car in cars %}
+            <div class="col-md-12">
+                <div class="movie-card d-flex align-items-start">
+                    <div class="me-3">
+                        <!-- Autobild anzeigen oder Platzhalter -->
+                        <div style="width: 200px; height: 300px; overflow: hidden;">
+                            <img src="{{ 'https://image.tmdb.org/t/p/w500' + car.poster_path if car.poster_path else 'https://placehold.co/200x300?text=Kein+Bild+verfügbar' }}"
+                                 alt="Auto Cover" class="movie-poster"/>
+                            alt="{{ car.title }}" class="movie-poster"/>
+                        </div>
+                    </div>
+                    <div>
+                        <h5>{{ car.title }}</h5>
+                        <p>Veröffentlichungsdatum: {{ car.release_date }}</p>
+                        <p>Bewertung: {{ (car.vote_average * 10) | round | int }}%</p>
+                        <p>Anzahl Bewertungen: {{ car.vote_count }}</p>
+
+                        <!-- Zeigt Genres an oder meldet "Nicht verfügbar" -->
+                        <p>
+                            Genres: {{ car.genres_names | join(', ') if car.genres_names else 'Nicht verfügbar' }}</p>
+
+                        <!-- Zeigt IMDb-ID mit Link an, wenn vorhanden -->
+                        <p>IMDb:
+                            {% if car.imdb_id %}
+                                <a href="https://www.imdb.com/title/{{ car.imdb_id }}"
+                                   target="_blank">{{ car.imdb_id }}</a>
+                            {% else %}
+                                Nicht verfügbar
+                            {% endif %}
+                        </p>
+                        <br>
+                        <p>{{ car.overview }}</p>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% elif (query or category) and not cars %}
+        <p>Keine Ergebnisse gefunden.</p>
+    {% endif %}
+{% endblock %}

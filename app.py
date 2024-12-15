@@ -31,28 +31,46 @@ def close_resources(error):
         db.close()
 
 
-@app.route("/", methods=["GET"])
+@app.route('/')
 def index():
-    """
-    Renders the homepage with an optional search query for car listings.
-    """
-    keyword = request.args.get("keyword", None)
-    results = []
+    return render_template('index.html', cars=None)
 
-    if keyword:
-        try:
-            response = willhaben.search_car(keyword=keyword, rows=30)
 
-            if response and "advertSummaryList" in response and "advertSummary" in response["advertSummaryList"]:
-                for ad in response["advertSummaryList"]["advertSummary"]:
-                    car_info = willhaben.extract_car_info(ad)
-                    flask_logger.info(f"Fetching car with ID: {car_info['id']}")
-                    results.append(car_info)
-        except Exception as e:
-            flask_logger.error(f"Error fetching cars: {e}")
-            return render_template("index.html", results=[], error=str(e))
+@app.route('/search', methods=['POST'])
+def search():
+    query = request.form.get('query')
+    if query:
+        db = get_db()
 
-    return render_template("index.html", results=results)
+        search_results = willhaben.search_car(keyword=query, rows=30)
+        cars = search_results.get('results', []) if search_results else []
+
+        return render_template('index.html', cars=cars, query=query)
+    return render_template('index.html', cars=None)
+
+
+# @app.route("/", methods=["GET"])
+# def index():
+#     """
+#     Renders the homepage with an optional search query for car listings.
+#     """
+#     keyword = request.args.get("keyword", None)
+#     results = []
+#
+#     if keyword:
+#         try:
+#             response = willhaben.search_car(keyword=keyword, rows=30)
+#
+#             if response and "advertSummaryList" in response and "advertSummary" in response["advertSummaryList"]:
+#                 for ad in response["advertSummaryList"]["advertSummary"]:
+#                     car_info = willhaben.extract_car_info(ad)
+#                     flask_logger.info(f"Fetching car with ID: {car_info['id']}")
+#                     results.append(car_info)
+#         except Exception as e:
+#             flask_logger.error(f"Error fetching cars: {e}")
+#             return render_template("index.html", results=[], error=str(e))
+#
+#     return render_template("index.html", results=results)
 
 
 @app.route("/fetch_cars", methods=["GET", "POST"])

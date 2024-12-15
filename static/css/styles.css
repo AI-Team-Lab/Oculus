@@ -1,0 +1,110 @@
+/* Anpassung des Randes für Eingabefelder */
+.form-control {
+    border-color: #eabc4c;
+}
+
+/* Fokus-Stil für Eingabefelder mit gelbem Rand und Schatten */
+.form-control:focus {
+    border-color: #eabc4c;
+    box-shadow: 0 0 0 0.25rem rgb(50, 50, 50);
+}
+
+/* Anpassung des primären Buttons: Hintergrund, Rand und Textfarbe */
+.btn-primary {
+    background-color: #eabc4c;
+    border-color: #eabc4c;
+    color: black;
+}
+
+/* Button Stil beim Hover-Effekt */
+.btn-primary:hover {
+    background-color: #8c6f2b;
+    border-color: #8C6F2BFF;
+    color: white;
+}
+
+/* Stil für eine benutzerdefinierte Filmkarte mit Rand, Radius, Polsterung und Abstand */
+.movie-card {
+    border: 2px solid #eabc4c;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+/* Stil für ein Filmcover mit festen Abmessungen und runden Ecken */
+.movie-poster {
+    width: 200px;
+    height: 300px;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+/* Tabelleneinstellungen: keine automatische Rand-Kollaps und feste Breite */
+.table {
+    border-collapse: initial;
+    border-spacing: 0;
+    width: auto;
+}
+
+/* Kopfzeilen der Tabelle zentriert, gepolstert, fett und mit gelbem Hintergrund */
+.table thead th {
+    padding: 4px;
+    text-align: center;
+    font-weight: bold;
+    background-color: #eabc4c;
+    color: #000000;
+}
+
+/* Entfernt den Standard-Außenabstand für alle Absatz-Tags in no-spacing */
+.no-spacing p {
+    margin: 0;
+}
+
+/* Stil für benutzerdefinierte Navigationsleiste mit schwarzem Hintergrund */
+.navbar-custom {
+    background-color: black;
+}
+
+/* Zentriert den Inhalt der Navigationsleiste vertikal */
+.navbar-custom .navbar-collapse {
+    display: flex;
+    align-items: center;
+}
+
+/* Stil für das Markenlogo: Flexible Breite, ohne übermäßige Polsterung */
+.navbar-custom .navbar-brand {
+    flex-grow: 1;
+    flex-basis: 0;
+    padding-bottom: 0;
+    padding-top: 0;
+    max-width: 3%;
+}
+
+/* Markenlogo: Bild passt sich der Breite an und bleibt proportional */
+.navbar-custom .navbar-brand img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+/* Zentriert das Navigationsmenü horizontal */
+.navbar-custom .navbar-nav {
+    flex-grow: 0;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Farbe für Navigationslinks in gelb */
+.navbar-custom .navbar-nav .nav-link {
+    color: #eabc4c;
+}
+
+/* Hover-Effekt für Navigationslinks: Farbe wechselt zu weiß */
+.navbar-custom .navbar-nav .nav-link:hover {
+    color: #ffffff;
+}
+
+/* Formular in der Navigationsleiste: Keine Dehnung */
+.navbar-custom form {
+    flex-grow: 0;
+}
