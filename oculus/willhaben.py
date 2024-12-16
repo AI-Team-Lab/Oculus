@@ -6,8 +6,8 @@ import random
 import time
 import re
 import logging
-from oculus.database import DatabaseError
 from oculus.logging import willhaben_logger
+from oculus.database import DatabaseError
 
 # List of user agents
 user_agents = [
@@ -35,7 +35,7 @@ class Willhaben:
         self.search_url = self.base_url + "/webapi/iad/search/atz/seo/gebrauchtwagen/auto/gebrauchtwagenboerse"
 
         # Initialize logger
-        self.logger = logging.getLogger("Database")
+        self.logger = logging.getLogger("Willhaben")
 
         # Default headers for API requests
         self.headers = {
@@ -478,6 +478,7 @@ class Willhaben:
             current_make (str): The current car make being processed. Default: "All".
             current_page (int): The current page being processed. Default: "Unknown".
         """
+
         # Überprüfen, ob Daten vorhanden sind
         if not data:
             willhaben_logger.warning(f"No data to save for make '{current_make}' on page {current_page}'.")
@@ -560,7 +561,7 @@ class Willhaben:
             return {"status": "error", "message": error_message}
 
         willhaben_logger.info(f"Processing cars for CAR_MODEL/MAKE: {car_model_make}")
-        directory = "csv_exports"
+        directory = "api_exports"
         os.makedirs(directory, exist_ok=True)
 
         filename = os.path.join(directory, f"car_make_{car_model_make or 'all'}.csv")

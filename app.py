@@ -1,17 +1,16 @@
-# app.py
 import os
 import json
 from flask import Flask, render_template, request, jsonify, g
-from oculus import Willhaben, Database, fetch_cars_task, move_data_to_dwh_task
-from oculus.logging import flask_logger
+from oculus import *
 from celery.result import AsyncResult
 from datetime import datetime
 
 # Initialize Flask
 app = Flask(__name__)
 
-# Initialize Willhaben
+# Initialize Classes
 willhaben = Willhaben()
+gebrauchtwagen = Gebrauchtwagen()
 
 
 # Laden der Mapping-Datei
@@ -416,6 +415,52 @@ def fetch_cars():
     except Exception as e:
         # Log unexpected errors
         flask_logger.error(f"Error queuing task: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/fetch_gebrauchtwagen', methods=['GET', 'POST'])
+def fetch_gebrauchtwagen():
+    """
+    Initiates a Celery task to fetch data from the Gebrauchtwagen API.
+    Supports both GET and POST methods.
+
+    GET Parameters:
+        - year_from (int): Optional start year for fetching vehicles.
+
+    POST Payload (JSON):
+        {
+            "year_from": 1920
+        }
+
+    Returns:
+        JSON response containing the task ID or an error message.
+    """
+    try:
+        year_from = 1920  # Default start year
+
+        # Handle GET request
+        if request.method == "GET":
+            year_from = request.args.get("year_from", 1920, type=int)
+
+        # Handle POST request
+        elif request.method == "POST":
+            data = request.get_json()
+            if not data:
+                flask_logger.error("Invalid JSON payload received in POST request.")
+                return jsonify({"status": "error", "message": "Invalid JSON payload."}), 400
+            year_from = data.get("year_from", 1920)
+
+        # Log task initiation
+        flask_logger.info(f"Queuing Gebrauchtwagen task starting from year {year_from}.")
+
+        # Trigger the Celery task
+        task = fetch_gebrauchtwagen_task.apply_async(args=[year_from])
+
+        flask_logger.info(f"Gebrauchtwagen task queued successfully with Task ID: {task.id}")
+        return jsonify({"status": "success", "task_id": task.id})
+
+    except Exception as e:
+        flask_logger.error(f"Error queuing Gebrauchtwagen task: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

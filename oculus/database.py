@@ -1,6 +1,7 @@
 import os
 import pymssql
 import logging
+import pandas as pd
 from oculus.logging import database_logger
 from dotenv import load_dotenv
 from datetime import datetime, timezone

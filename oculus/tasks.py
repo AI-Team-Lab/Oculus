@@ -1,7 +1,5 @@
 from celery import Celery
-from oculus.willhaben import Willhaben
-from oculus.database import Database
-from oculus.logging import celery_logger
+from oculus import Gebrauchtwagen, Willhaben, Database, celery_logger
 from datetime import datetime
 
 # Celery configuration
@@ -19,8 +17,9 @@ celery.conf.update(
     task_track_started=True,
 )
 
-# Initialize the Willhaben class
+# Initialize the classes
 willhaben = Willhaben()
+gebrauchtwagen = Gebrauchtwagen()
 
 
 @celery.task(bind=True, max_retries=3, default_retry_delay=60)
@@ -92,6 +91,52 @@ def fetch_cars_task(self, car_model_make=None, start_make=None):
 
     finally:
         db.close()
+        end_time = datetime.now()
+        celery_logger.info(f"Task {task_id} ended at {end_time}. Duration: {end_time - start_time}")
+
+
+@celery.task(bind=True, max_retries=3, default_retry_delay=60)
+def fetch_gebrauchtwagen_task(self, year_from=1920):
+    """
+    Celery task to fetch data from the Gebrauchtwagen API and save it to a CSV file.
+
+    Args:
+        self (Task): The Celery task instance.
+        year_from (int): The start year for fetching vehicles.
+
+    Returns:
+        dict: Task result containing status and a message.
+    """
+    api_client = Gebrauchtwagen()
+    start_time = datetime.now()
+    task_id = self.request.id
+
+    try:
+        celery_logger.info(f"Task {task_id} started at {start_time}. Fetching data starting from year {year_from}.")
+
+        # Retrieve all makes and models
+        makes_and_models = api_client.fetch_makes_and_models()
+        if not makes_and_models:
+            celery_logger.error(f"Task {task_id} failed: No makes and models found.")
+            return {"status": "error", "message": "No makes and models found."}
+
+        # Fetch data for each make and model
+        for make, model in makes_and_models:
+            celery_logger.info(f"Fetching data for make: {make}, model: {model}.")
+            api_client.fetch_filtered_data(make, model, year_from)
+
+        # Save data to CSV
+        api_client.save_to_csv()
+
+        celery_logger.info(f"Task {task_id} successfully completed.")
+        return {"status": "success", "message": "Gebrauchtwagen data fetched and saved successfully."}
+
+    except Exception as e:
+        celery_logger.error(f"Task {task_id} failed: {e}")
+        self.update_state(state="FAILURE", meta={"error": str(e)})
+        raise self.retry(exc=e)
+
+    finally:
         end_time = datetime.now()
         celery_logger.info(f"Task {task_id} ended at {end_time}. Duration: {end_time - start_time}")
 
