@@ -1,6 +1,8 @@
 from celery import Celery
 from oculus import Gebrauchtwagen, Willhaben, Database, celery_logger
+from oculus.price_prediction import CarPricePredictionModelD
 from datetime import datetime
+from pathlib import Path
 
 # Celery configuration
 celery = Celery(
@@ -353,3 +355,53 @@ def move_data_to_dwh_task(self, delete_from_staging=False):
 
     finally:
         db.close()
+
+
+@celery.task(bind=True, max_retries=3, default_retry_delay=60)
+def update_predicted_prices_task(self):
+    """
+    Celery task to update predicted car prices in the database.
+
+    Args:
+        self (Task): The Celery task instance.
+
+    Returns:
+        dict: Task result containing status and a message.
+    """
+    db = Database()
+    start_time = datetime.now()
+    task_id = self.request.id
+
+    try:
+        db.connect()
+        celery_logger.info(f"Task {task_id} started at {start_time}.")
+
+        # Bestimme das Basisverzeichnis
+        base_dir = Path(__file__).resolve().parent.parent  # Passe dies an dein Projektlayout an
+
+        # Setze den korrekten model_dir
+        model_dir = base_dir / 'oculus' / 'model_d'
+
+        # Log den Pfad zum Modell
+        celery_logger.debug(f"Loading model from: {model_dir / 'trained_model.keras'}")
+
+        # Initialisiere das Modell mit dem korrekten model_dir
+        car_model = CarPricePredictionModelD(model_dir=model_dir)
+        car_model.load_model_and_scaler()
+        celery_logger.debug("CarPricePredictionModelD loaded successfully.")
+
+        # Aktualisiere die vorhergesagten Preise
+        Database.update_predicted_prices(db)
+
+        celery_logger.info(f"Task {task_id}: Predicted prices updated successfully.")
+        return {"status": "success", "message": "Predicted prices updated successfully."}
+
+    except Exception as e:
+        celery_logger.error(f"Task {task_id} failed: {e}", exc_info=True)
+        self.update_state(state="FAILURE", meta={"error": str(e)})
+        raise self.retry(exc=e)
+
+    finally:
+        db.close()
+        end_time = datetime.now()
+        celery_logger.info(f"Task {task_id} ended at {end_time}. Duration: {end_time - start_time}")

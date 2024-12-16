@@ -850,14 +850,19 @@ def import_gebrauchtwagen():
         return jsonify({"status": "error", "message": f"Unexpected error: {e}"}), 500
 
 
-@app.route('/update_predicted_prices', methods=['GET'])
+@app.route('/update_predicted_prices', methods=['POST', 'GET'])
 def update_predicted_prices_route():
-    db = get_db()
     try:
-        Database.update_predicted_prices(db)
-        return jsonify({"status": "success", "message": "Predicted prices updated successfully."}), 200
+        # Starte den Celery-Task
+        task = update_predicted_prices_task.apply_async()
+        flask_logger.info(f"update_predicted_prices_task queued with Task ID: {task.id}")
+        return jsonify({
+            "status": "success",
+            "task_id": task.id,
+            "message": "Predicted prices update started."
+        }), 202
     except Exception as e:
-        flask_logger.error(f"Error updating predicted prices: {e}")
+        flask_logger.error(f"Error queuing update_predicted_prices_task: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
