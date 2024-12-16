@@ -202,9 +202,35 @@ def search():
                     image_url
                 ) = row
 
-                # Mapping interne Werte zu Display-Namen
-                make_display = reverse_make_mapping.get(make_internal, make_internal.replace('_', ' ').title())
-                model_display = reverse_model_mapping.get(model_internal, model_internal.replace('_', ' ').title())
+                # Mapping der Felder
+                mapped_make = mappings.get('willhaben_make_mapping', {})
+                reverse_make_mapping = {v.lower(): k for k, v in mapped_make.items()}
+                mapped_make_name = reverse_make_mapping.get(make_internal.lower(), make_internal)
+
+                mapped_model = mappings.get('willhaben_model_mapping', {})
+                reverse_model_mapping = {v.lower(): k for k, v in mapped_model.items()}
+                mapped_model_name = reverse_model_mapping.get(model_internal.lower(), model_internal)
+
+                car_type_mapping = mappings.get('willhaben_car_type_mapping', {})
+                reverse_car_type_mapping = {v.lower(): k for k, v in car_type_mapping.items()}
+                mapped_car_type = reverse_car_type_mapping.get(type_.lower(), type_)
+
+                transmission_type_mapping = mappings.get('willhaben_transmission_type_mapping', {})
+                reverse_transmission_type_mapping = {v.lower(): k for k, v in transmission_type_mapping.items()}
+                mapped_transmission_type = reverse_transmission_type_mapping.get(transmission_type.lower(),
+                                                                                 transmission_type)
+
+                fuel_type_mapping = mappings.get('willhaben_fuel_type_mapping', {})
+                reverse_fuel_type_mapping = {v.lower(): k for k, v in fuel_type_mapping.items()}
+                mapped_fuel_type = reverse_fuel_type_mapping.get(fuel_type.lower(), fuel_type)
+
+                color_mapping = mappings.get('willhaben_color_mapping', {})
+                reverse_color_mapping = {v.lower(): k for k, v in color_mapping.items()}
+                mapped_color = reverse_color_mapping.get(color_name.lower(), color_name)
+
+                condition_mapping = mappings.get('willhaben_condition_mapping', {})
+                reverse_condition_mapping = {v.lower(): k for k, v in condition_mapping.items()}
+                mapped_condition = reverse_condition_mapping.get(car_condition.lower(), car_condition)
 
                 # Formatierung und Standardwerte
                 formatted_published = published.strftime('%d.%m.%Y %H:%M') if published else "N/A"
@@ -222,20 +248,20 @@ def search():
                 # Hinzufügen des Fahrzeugs zur Liste
                 cars.append({
                     'willhaben_id': willhaben_id,
-                    'make_display': make_display,
-                    'model_display': model_display,
+                    'make_name': mapped_make_name,
+                    'model_name': mapped_model_name,
                     'specification': specification or "N/A",
                     'description': description or "N/A",
                     'year_model': year_model or "N/A",
-                    'transmission_type': transmission_type or "N/A",
+                    'transmission_type': mapped_transmission_type or "N/A",
                     'mileage': mileage or "N/A",
                     'noofseats': noofseats or "N/A",
                     'power_in_kw': power_in_kw or "N/A",
-                    'fuel_type': fuel_type or "N/A",
-                    'type': type_ or "N/A",
+                    'fuel_type': mapped_fuel_type or "N/A",
+                    'type': mapped_car_type or "N/A",
                     'no_of_owners': no_of_owners if no_of_owners else "Unknown",
-                    'color_name': color_name or "N/A",
-                    'car_condition': car_condition or "N/A",
+                    'color_name': mapped_color or "N/A",
+                    'car_condition': mapped_condition or "N/A",
                     'address': address or "N/A",
                     'location': location or "N/A",
                     'postcode': postcode or "N/A",
