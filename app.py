@@ -653,6 +653,117 @@ def get_models(make_internal_value):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route('/import_gebrauchtwagen', methods=['GET'])  # Support only GET
+# Optional: Add authentication
+# @auth.login_required
+def import_gebrauchtwagen():
+    """
+    Route to create the 'dl.Gebrauchtwagen' table and import data from a CSV file.
+    Optionally, the table can be deleted before the import.
+
+    Supports only GET requests.
+
+    Expected GET parameters:
+        - delete_before_import: true/false (optional, default: false)
+        - csv_file_path: Filename of the CSV file (optional, default path is used if not provided)
+
+    Returns:
+        JSON response with status and message.
+    """
+    db = None  # Initialize 'db' with None
+    try:
+        # Extract query parameters
+        delete_before_import_str = request.args.get("delete_before_import", "false").lower()
+        delete_before_import = delete_before_import_str == "true"
+
+        # Extract the filename and ensure it's safe
+        csv_filename = request.args.get("csv_file_path", "gebrauchtwagen_data_122024.csv")
+
+        # Prevent directory traversal by ensuring only the filename is provided
+        if os.path.basename(csv_filename) != csv_filename:
+            flask_logger.error("Invalid 'csv_file_path' parameter. Only filenames are allowed.")
+            return jsonify({
+                "status": "error",
+                "message": "Invalid 'csv_file_path' parameter. Only filenames are allowed."
+            }), 400
+
+        # Define the directory where CSV files are located
+        csv_directory = os.path.join(os.getcwd(), 'oculus', 'train_data')
+
+        # Construct the full path to the CSV file
+        csv_file_path = os.path.join(csv_directory, csv_filename)
+
+        # Ensure the CSV directory exists
+        if not os.path.isdir(csv_directory):
+            flask_logger.error(f"CSV directory not found: {csv_directory}")
+            return jsonify({
+                "status": "error",
+                "message": f"CSV directory not found: {csv_directory}"
+            }), 400
+
+        db = get_db()
+
+        # Check if the table already exists
+        check_table_query = """
+        SELECT COUNT(*) 
+        FROM information_schema.tables 
+        WHERE table_schema = 'dl' 
+          AND table_name = 'gebrauchtwagen'
+        """
+        db.cursor.execute(check_table_query)
+        table_exists = db.cursor.fetchone()[0] > 0
+
+        if table_exists:
+            if delete_before_import:
+                # Clear the table
+                db.clear_table(db, 'dl.Gebrauchtwagen')
+                db.logger.info("Existing 'dl.Gebrauchtwagen' table cleared.")
+            else:
+                db.logger.info("'dl.Gebrauchtwagen' table already exists. Skipping creation.")
+                return jsonify({
+                    "status": "info",
+                    "message": "'dl.Gebrauchtwagen' table already exists. Use 'delete_before_import=true' to clear it before import."
+                }), 200
+
+        # Create the table
+        db.create_table_gebrauchtwagen()
+
+        # Load the CSV data
+        df = db.read_csv(csv_file_path)
+
+        # Insert the data into the table
+        db.insert_data_gebrauchtwagen(df)
+
+        db.logger.info("Gebrauchtwagen data successfully imported.")
+        return jsonify({
+            "status": "success",
+            "message": "Gebrauchtwagen data successfully imported."
+        }), 200
+
+    except DatabaseError as e:
+        if db:
+            db.logger.error(f"Database error during import: {e}")
+            return jsonify({"status": "error", "message": f"Database error: {e}"}), 500
+        else:
+            flask_logger.error(f"Database error during import: {e}")
+            return jsonify({"status": "error", "message": f"Database error: {e}"}), 500
+
+    except FileNotFoundError as e:
+        if db:
+            db.logger.error(f"CSV file not found: {e}")
+            return jsonify({"status": "error", "message": f"CSV file not found: {e}"}), 400
+        else:
+            flask_logger.error(f"CSV file not found: {e}")
+            return jsonify({"status": "error", "message": f"CSV file not found: {e}"}), 400
+
+    except Exception as e:
+        if db:
+            db.logger.error(f"Unexpected error during import: {e}")
+        else:
+            flask_logger.error(f"Unexpected error during import: {e}")
+        return jsonify({"status": "error", "message": f"Unexpected error: {e}"}), 500
+
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",

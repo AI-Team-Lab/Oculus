@@ -54,6 +54,15 @@ class Database:
             self.logger.error(f"Error loading gebrauchtwagen_mapping.json: {e}")
             self.gebrauchtwagen_mappings = {}
 
+        try:
+            json_path_gebrauchtwagen = os.path.join(os.path.dirname(__file__), "mapping", "gebrauchtwagen_mapping.json")
+            with open(json_path_gebrauchtwagen, mode="r", encoding="utf-8") as f:
+                self.gebrauchtwagen_mappings = json.load(f)
+            self.logger.info(f"Successfully loaded gebrauchtwagen_mapping.json from {json_path_gebrauchtwagen}")
+        except Exception as e:
+            self.logger.error(f"Error loading gebrauchtwagen_mapping.json: {e}")
+            self.gebrauchtwagen_mappings = {}
+
     def _load_env_file(self):
         """
         Loads the .env file and logs if it is missing or fails to load.
@@ -231,6 +240,130 @@ class Database:
             self.conn.rollback()
             self.logger.error(f"Failed to insert data into '{table_name}': {e}")
             raise DatabaseError(f"Failed to insert data into '{table_name}': {e}")
+
+    def insert_data_gebrauchtwagen(self, df):
+        """
+        Fügt Daten aus einem DataFrame in die Tabelle 'dl.Gebrauchtwagen' ein.
+
+        Args:
+            df (pd.DataFrame): DataFrame mit den einzufügenden Daten.
+
+        Raises:
+            DatabaseError: Wenn das Einfügen der Daten fehlschlägt.
+        """
+        insert_query = """
+        INSERT INTO dl.Gebrauchtwagen (id, make, model, mileage, engine_effect, engine_fuel, year_model, location, price)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        successful_inserts = 0
+
+        try:
+            for _, row in df.iterrows():
+                try:
+                    self.cursor.execute(insert_query, (
+                        row['id'],
+                        row['make'],
+                        row['model'],
+                        row['mileage'],
+                        row['engine_effect'],
+                        row['engine_fuel'],
+                        row['year_model'],
+                        row['location'],
+                        row['price']
+                    ))
+                    successful_inserts += 1
+                except pymssql.IntegrityError as e:
+                    self.logger.warning(f"IntegrityError inserting row ID {row['id']}: {e}. Skipping row.")
+                    self.conn.rollback()
+                    continue
+                except Exception as e:
+                    self.logger.error(f"Error inserting row ID {row['id']}: {e}. Skipping row.")
+                    self.conn.rollback()
+                    continue
+
+            self.conn.commit()
+            self.logger.info(f"Successfully inserted {successful_inserts} rows into 'dl.Gebrauchtwagen'.")
+        except Exception as e:
+            self.conn.rollback()
+            self.logger.error(f"Failed to insert data into 'dl.Gebrauchtwagen': {e}")
+            raise DatabaseError(f"Failed to insert data into 'dl.Gebrauchtwagen': {e}")
+
+    def execute_query(self, query, parameters=None):
+        """
+        Executes a SQL query with optional parameters.
+
+        Args:
+            query (str): The SQL query to execute.
+            parameters (tuple, optional): The parameters to pass with the query.
+
+        Raises:
+            DatabaseError: If the query execution fails.
+        """
+        self.ensure_connection()
+        try:
+            self.cursor.execute(query, parameters) if parameters else self.cursor.execute(query)
+        except pymssql.Error as e:
+            self.logger.error(f"SQL query error: {e}")
+            raise DatabaseError(f"SQL query error: {e}")
+
+    def create_table_gebrauchtwagen(self):
+        """
+        Erstellt die Tabelle 'dl.Gebrauchtwagen' in der Datenbank.
+
+        Raises:
+            DatabaseError: Wenn das Erstellen der Tabelle fehlschlägt.
+        """
+        create_table_query = """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'gebrauchtwagen' AND schema_id = SCHEMA_ID('dl'))
+        BEGIN
+            CREATE TABLE dl.gebrauchtwagen (
+                id UNIQUEIDENTIFIER PRIMARY KEY,
+                make NVARCHAR(50) NOT NULL,
+                model NVARCHAR(50) NOT NULL,
+                mileage FLOAT NOT NULL,
+                engine_effect INT NOT NULL,
+                engine_fuel NVARCHAR(20) NOT NULL,
+                year_model INT NOT NULL,
+                location NVARCHAR(100) NOT NULL,
+                price DECIMAL(10, 2) NOT NULL
+            );
+        END
+        """
+        try:
+            self.execute_query(create_table_query)
+            self.logger.info("Table 'dl.Gebrauchtwagen' created successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to create table 'dl.Gebrauchtwagen': {e}")
+            raise DatabaseError(f"Failed to create table 'dl.Gebrauchtwagen': {e}")
+
+    def read_csv(self, csv_file_path):
+        """
+        Lädt Daten aus einer CSV-Datei in ein pandas DataFrame.
+
+        Args:
+            csv_file_path (str): Pfad zur CSV-Datei.
+
+        Returns:
+            pd.DataFrame: Daten aus der CSV-Datei.
+
+        Raises:
+            FileNotFoundError: Wenn die CSV-Datei nicht gefunden wird.
+            pd.errors.ParserError: Wenn ein Fehler beim Parsen der CSV-Datei auftritt.
+        """
+        try:
+            df = pd.read_csv(csv_file_path)
+            self.logger.info(f"CSV file loaded successfully: {csv_file_path}")
+            self.logger.debug(f"DataFrame head:\n{df.head()}")
+            self.logger.debug(f"Missing values before fillna:\n{df.isna().sum()}")
+            df = df.fillna('')
+            self.logger.debug(f"Missing values after fillna:\n{df.isna().sum()}")
+            return df
+        except FileNotFoundError as e:
+            self.logger.error(f"CSV file not found: {e}")
+            raise
+        except pd.errors.ParserError as e:
+            self.logger.error(f"Error parsing the CSV file: {e}")
+            raise
 
     @staticmethod
     def clear_table(db_instance, table_name):
