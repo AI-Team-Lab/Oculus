@@ -1,0 +1,178 @@
+<!-- templates/prediction.html -->
+{% extends "base.html" %}
+
+{% block title %}Vorhersage - Oculus{% endblock %}
+
+{% block main %}
+    <div class="container mt-5">
+        <h2 class="text-center mb-4">Vorhersagen</h2>
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <form method="POST" action="{{ url_for('prediction') }}" id="predictionForm">
+                    <!-- Fahrzeugmarke Dropdown -->
+                    <div class="mb-3">
+                        <label for="make" class="form-label">Wählen Sie eine Fahrzeugmarke:</label>
+                        <select class="form-select" id="make" name="make" required>
+                            <option value="" disabled {% if not selected_make %}selected{% endif %}>Bitte wählen...
+                            </option>
+                            {% for display, value in make_options %}
+                                <option value="{{ value }}"
+                                        {% if selected_make == value %}selected{% endif %}>{{ display }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if errors.make %}
+                            <div class="text-danger mt-1">{{ errors.make }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Fahrzeugmodell Dropdown -->
+                    <div class="mb-3">
+                        <label for="model" class="form-label">Wählen Sie ein Fahrzeugmodell:</label>
+                        <select class="form-select" id="model" name="model" required
+                                {% if not selected_make %}disabled{% endif %}>
+                            <option value="" disabled {% if not selected_model %}selected{% endif %}>Bitte wählen...
+                            </option>
+                            <!-- Modelle werden dynamisch geladen via JavaScript -->
+                        </select>
+                        {% if errors.model %}
+                            <div class="text-danger mt-1">{{ errors.model }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Treibstoff-Dropdown -->
+                    <div class="mb-3">
+                        <label for="fuel" class="form-label">Wählen Sie einen Treibstofftyp:</label>
+                        <select class="form-select" id="fuel" name="fuel" required>
+                            <option value="" disabled {% if not selected_fuel %}selected{% endif %}>Bitte wählen...
+                            </option>
+                            {% for display, value in fuel_options %}
+                                <option value="{{ value }}"
+                                        {% if selected_fuel == value %}selected{% endif %}>{{ display }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if errors.fuel %}
+                            <div class="text-danger mt-1">{{ errors.fuel }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Kilometer (KM) Textbox -->
+                    <div class="mb-3">
+                        <label for="kilometer" class="form-label">Kilometerstand (KM):</label>
+                        <input type="number" class="form-control" id="kilometer" name="kilometer"
+                               placeholder="z.B. 15000" min="0" step="1" value="{{ kilometer or '' }}" required>
+                        {% if errors.kilometer %}
+                            <div class="text-danger mt-1">{{ errors.kilometer }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Leistung (KW) Textbox -->
+                    <div class="mb-3">
+                        <label for="leistung_kw" class="form-label">Leistung (KW):</label>
+                        <input type="number" class="form-control" id="leistung_kw" name="leistung_kw"
+                               placeholder="z.B. 150" min="1" max="300" step="1" value="{{ leistung_kw or '' }}"
+                               required>
+                        {% if errors.leistung_kw %}
+                            <div class="text-danger mt-1">{{ errors.leistung_kw }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Erstzulassung Textbox -->
+                    <div class="mb-3">
+                        <label for="erstzulassung" class="form-label">Erstzulassung:</label>
+                        <input type="number" class="form-control" id="erstzulassung" name="erstzulassung"
+                               placeholder="z.B. 2015" min="1800" max="{{ current_year }}" step="1"
+                               value="{{ erstzulassung or '' }}" required>
+                        {% if errors.erstzulassung %}
+                            <div class="text-danger mt-1">{{ errors.erstzulassung }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Absende-Button -->
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Vorhersage anzeigen</button>
+                    </div>
+                </form>
+
+                <!-- Anzeige des Vorhersageergebnisses -->
+                {% if result %}
+                    <div class="alert alert-success mt-4" role="alert">
+                        {{ result }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript bleibt unverändert -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const makeSelect = document.getElementById('make');
+            const modelSelect = document.getElementById('model');
+            const currentYear = {{ current_year }};
+
+            makeSelect.addEventListener('change', function () {
+                const selectedMake = this.value;
+
+                if (selectedMake) {
+                    // Aktivieren des Modell-Dropdowns
+                    modelSelect.disabled = false;
+
+                    // Reset model dropdown
+                    modelSelect.innerHTML = '<option value="" disabled selected>Bitte wählen...</option>';
+
+                    // Laden der Modelle basierend auf der ausgewählten Marke
+                    fetch(`/get_models/${selectedMake}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                data.models.forEach(function (model) {
+                                    const option = document.createElement('option');
+                                    option.value = model.value; // Interner Wert
+                                    option.textContent = model.display_name; // Anzeigefreundlicher Name
+                                    modelSelect.appendChild(option);
+                                });
+
+                                // Optional: Selektieren des vorherigen Wertes, falls vorhanden
+                                {% if selected_model %}
+                                    modelSelect.value = "{{ selected_model }}"
+                                {% endif %}
+                            } else {
+                                alert("Fehler beim Laden der Modelle: " + data.message);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching models:', error);
+                            alert("Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.");
+                        });
+                } else {
+                    // Deaktivieren des Modell-Dropdowns, wenn keine Marke ausgewählt ist
+                    modelSelect.disabled = true;
+                    modelSelect.innerHTML = '<option value="" disabled selected>Bitte wählen...</option>';
+                }
+            });
+
+            // Trigger change event on page load to populate models if a make is already selected
+            if (makeSelect.value) {
+                makeSelect.dispatchEvent(new Event('change'));
+            }
+        });
+
+        // Formularvalidierung bleibt unverändert
+        document.getElementById('predictionForm').addEventListener('submit', function (event) {
+            const erstzulassung = document.getElementById('erstzulassung').value;
+            const currentYear = {{ current_year }};
+            let valid = true;
+            let messages = [];
+
+            if (!Number.isInteger(Number(erstzulassung)) || erstzulassung < 1800 || erstzulassung > current_year) {
+                valid = false;
+                messages.push(`Erstzulassungsjahr muss eine ganze Zahl zwischen 1800 und ${current_year} sein.`);
+            }
+
+            if (!valid) {
+                event.preventDefault(); // Formularübermittlung verhindern
+                alert(messages.join("\n")); // Fehlermeldungen anzeigen
+            }
+        });
+    </script>
+{% endblock %}

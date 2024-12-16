@@ -1,0 +1,69 @@
+<!-- templates/detailed_search.html -->
+{% extends "base.html" %}
+
+{% block title %}Detaillierte Suche - Oculus{% endblock %}
+
+{% block main %}
+    <div class="container mt-5">
+        <h2 class="text-center mb-4">Detaillierte Suche</h2>
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <form method="POST" action="{{ url_for('detailed_search') }}">
+                    <div class="mb-3">
+                        <label for="make" class="form-label">Automarke:</label>
+                        <input type="text" class="form-control" id="make" name="make" placeholder="z.B. BMW"
+                               value="{{ make or '' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="model" class="form-label">Modell:</label>
+                        <input type="text" class="form-control" id="model" name="model" placeholder="z.B. 3er"
+                               value="{{ model or '' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="year" class="form-label">Baujahr:</label>
+                        <input type="number" class="form-control" id="year" name="year" placeholder="z.B. 2020"
+                               value="{{ year or '' }}" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Suche durchführen</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if cars %}
+            <div class="row mt-5">
+                <div class="col-12">
+                    <h3 class="mb-4">Suchergebnisse:</h3>
+                    <div class="row row-cols-1 row-cols-md-3 g-4">
+                        {% for car in cars %}
+                            <div class="col">
+                                <div class="card car-card h-100">
+                                    <img src="{{ car.image_url or url_for('static', filename='images/placeholder.png') }}"
+                                         class="card-img-top"
+                                         alt="Car Image"
+                                         onerror="this.src='https://placehold.co/300x200?text=Kein+Bild'">
+                                    <div class="card-body">
+                                        <h4 class="card-title fw-bold">{{ car.make_name }} {{ car.model_name }}</h4>
+                                        <p class="card-text">
+                                            <strong>Baujahr:</strong> {{ car.year_model or "N/A" }}<br>
+                                            <!-- Weitere Fahrzeugdetails hier -->
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% elif cars is not none %}
+            <div class="row mt-5">
+                <div class="col-12">
+                    <div class="alert alert-warning" role="alert">
+                        Keine Ergebnisse gefunden.
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

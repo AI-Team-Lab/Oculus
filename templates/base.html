@@ -1,23 +1,39 @@
-<!-- base.html -->
+<!-- templates/base.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
+    <meta charset="UTF-8">
     <title>{% block title %}Oculus{% endblock %}</title>
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}"/>
+    <!-- Oculus CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}"/>
 </head>
 <body>
+<!-- Navigationsleiste -->
 <nav class="navbar navbar-expand-lg navbar-dark navbar-custom">
     <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('index') }}">
+            <img src="{{ url_for('static', filename='images/cb_logo_small.png') }}" alt="Logo"/>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown"
+                aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
         <div class="collapse navbar-collapse" id="navbarNavDropdown">
-            <a class="navbar-brand" href="/">
-                <img src="{{ url_for('static', filename='images/cb_logo_small.png') }}" alt="Logo"/>
-            </a>
             <ul class="navbar-nav mx-auto mb-2 mb-lg-0">
-                <!-- <li class="nav-item"><a class="nav-link" href="/prediction">Vorhersage</a></li> -->
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'prediction' %}active{% endif %}"
+                       href="{{ url_for('prediction') }}">Vorhersage</a>
+                </li>
+{#                <li class="nav-item">#}
+{#                    <a class="nav-link {% if request.endpoint == 'detailed_search' %}active{% endif %}"#}
+{#                       href="{{ url_for('detailed_search') }}">Detaillierte Suche</a>#}
+{#                </li>#}
             </ul>
-            <form class="d-flex" action="/search" method="POST">
+            <form class="d-flex" action="{{ url_for('search') }}" method="POST">
                 <input class="form-control me-2" type="search" name="query" placeholder="Automarke eingeben" required>
                 <button class="btn btn-primary" type="submit">Suchen</button>
             </form>
@@ -25,6 +41,7 @@
     </div>
 </nav>
 
+<!-- Hauptinhalt -->
 <div class="container mt-5">
     {% block main %}{% endblock %}
     <div class="row mt-4 no-spacing">
@@ -32,6 +49,7 @@
     </div>
 </div>
 
+<!-- Bootstrap JS und Abhängigkeiten -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

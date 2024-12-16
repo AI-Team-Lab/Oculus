@@ -6,6 +6,7 @@ import os
 # Load environment variables from the .env file
 load_dotenv()
 
+
 class DatabaseConnection:
     def __init__(self):
         # Read database connection details from environment variables
@@ -86,7 +87,7 @@ class GebrauchtwagenData:
             print(f"CSV file loaded successfully: {self.csv_file_path}")
             print(df.head())  # Display the first few rows of the CSV
             print(df.isna().sum())
-            df=df.fillna('')
+            df = df.fillna('')
             print(df.isna().sum())
             return df
         except FileNotFoundError as e:
@@ -123,7 +124,7 @@ class GebrauchtwagenData:
 
 def main():
     # Path to the CSV file (ensure this path is correct)
-    csv_file_path = os.path.join(os.getcwd(), 'model','output_api', 'gebrauchtwagen_data_122024.csv')
+    csv_file_path = os.path.join(os.getcwd(), 'oculus', 'model', 'output_api', 'gebrauchtwagen_data_122024.csv')
 
     # Create a database connection object
     db = DatabaseConnection()

@@ -119,6 +119,12 @@
     color: #ffffff;
 }
 
+/* Farbe für aktive Navigationslinks in weiß */
+.navbar-custom .navbar-nav .nav-link.active {
+    color: #ffffff;
+    font-weight: bold; /* Optional: Hervorhebung durch Fettung */
+}
+
 /* Formular in der Navigationsleiste: Keine Dehnung */
 .navbar-custom form {
     flex-grow: 0;
