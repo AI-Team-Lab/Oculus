@@ -1,0 +1,13 @@
+[Unit]
+Description=Celery Worker for Oculus
+After=network.target
+
+[Service]
+User=ocuadmin
+Group=ocuadmin
+WorkingDirectory=/home/ocuadmin/Oculus
+Environment="PATH=/home/ocuadmin/Oculus/.venv/bin"
+ExecStart=/home/ocuadmin/Oculus/.venv/bin/celery -A oculus.tasks worker --loglevel=info
+
+[Install]
+WantedBy=multi-user.target

@@ -438,5 +438,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=5000,
         debug=True,
-        ssl_context=("./certs/fullchain.pem", "./certs/privkey.pem"),
+        ssl_context=("./config/certs/fullchain.pem", "./config/certs/privkey.pem"),
     )

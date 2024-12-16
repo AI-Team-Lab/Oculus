@@ -1,0 +1,15 @@
+[Unit]
+Description=Gunicorn instance to serve Flask application (HTTPS)
+After=network.target
+
+[Service]
+User=ocuadmin
+Group=ocuadmin
+WorkingDirectory=/home/ocuadmin/Oculus
+Environment="PATH=/home/ocuadmin/Oculus/.venv/bin"
+ExecStart=/home/ocuadmin/Oculus/.venv/bin/gunicorn -w 1 -b 0.0.0.0:5000 app:app \
+    --certfile=/home/ocuadmin/Oculus/config/certs/fullchain.pem \
+    --keyfile=/home/ocuadmin/Oculus/config/certs/privkey.pem \
+    --log-level info \
+    --access-logfile /home/ocuadmin/Oculus/logs/access.log \
+    --error-logfile /home/ocuadmin/Oculus/logs/error.log
