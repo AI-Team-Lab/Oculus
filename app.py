@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 from flask import Flask, render_template, request, jsonify, g
 from oculus import *
 from celery.result import AsyncResult
@@ -11,6 +12,24 @@ app = Flask(__name__)
 # Initialize Classes
 willhaben = Willhaben()
 gebrauchtwagen = Gebrauchtwagen()
+
+# Initialisiere und lade die Modelle beim Start der App
+base_dir = Path(__file__).resolve().parent  # Verzeichnis von app.py
+
+car_model_d = CarPricePredictionModelD(model_dir=base_dir / 'oculus' / 'model_d')
+car_model_p = CarPricePredictionModelP(model_dir=base_dir / 'oculus' / 'model_p')
+
+try:
+    car_model_d.load_model_and_scaler()
+    flask_logger.info("CarPricePredictionModelD loaded successfully.")
+except Exception as e:
+    flask_logger.error(f"Failed to load CarPricePredictionModelD: {e}")
+
+try:
+    car_model_p.load_model_and_scaler()
+    flask_logger.info("CarPricePredictionModelP loaded successfully.")
+except Exception as e:
+    flask_logger.error(f"Failed to load CarPricePredictionModelP: {e}")
 
 
 # Laden der Mapping-Datei
@@ -308,25 +327,66 @@ def prediction():
         erstzulassung = request.form.get('erstzulassung')
 
         flask_logger.info(
-            f"Received prediction request: make_internal_value={selected_make}, model_internal_value={selected_model}, fuel={selected_fuel}, kilometer={kilometer}, leistung_kw={leistung_kw}, erstzulassung={erstzulassung}")
+            f"Received prediction request: make_internal_value={selected_make}, model_internal_value={selected_model}, "
+            f"fuel={selected_fuel}, kilometer={kilometer}, leistung_kw={leistung_kw}, erstzulassung={erstzulassung}"
+        )
 
-        if not errors:
+        # Validierung der Eingaben
+        if not all([selected_make, selected_model, selected_fuel, kilometer, leistung_kw, erstzulassung]):
+            errors['prediction'] = "Alle Felder müssen ausgefüllt werden."
+            flask_logger.warning("Prediction request has missing fields.")
+        else:
             try:
-                make_display = reverse_make_mapping.get(selected_make, selected_make.replace('_', ' ').title())
-                model_display = reverse_model_mapping.get(selected_model, selected_model.replace('_', ' ').title())
-                fuel_display = reverse_fuel_mapping.get(selected_fuel, selected_fuel.replace('_', ' ').title())
+                # Mapping der internen Werte zu Anzeigenamen
+                make_display = reverse_make_mapping.get(selected_make.lower(), selected_make.replace('_', ' ').title())
+                model_display = reverse_model_mapping.get(selected_model.lower(),
+                                                          selected_model.replace('_', ' ').title())
+                fuel_display = reverse_fuel_mapping.get(selected_fuel.lower(), selected_fuel.replace('_', ' ').title())
 
-                prediction_result = (
-                    f"Vorhersage für Marke: {make_display}, Modell: {model_display}, "
-                    f"Treibstoff: {fuel_display}, Kilometer: {kilometer} KM, "
-                    f"Leistung: {leistung_kw} KW, Erstzulassung: {erstzulassung}: [Ihre Vorhersage hier]"
+                # Durchführung der Vorhersagen mit beiden Modellen
+                prediction_d = car_model_d.predict(
+                    make=make_display,
+                    model=model_display,
+                    mileage=float(kilometer),
+                    engine_effect=float(leistung_kw),
+                    engine_fuel=fuel_display,
+                    year_model=int(erstzulassung)
                 )
+                flask_logger.debug("Prediction with CarPricePredictionModelD completed.")
 
-                result = prediction_result
+                prediction_p = car_model_p.predict(
+                    make=make_display,
+                    model=model_display,
+                    mileage=float(kilometer),
+                    engine_effect=float(leistung_kw),
+                    engine_fuel=fuel_display,
+                    year_model=int(erstzulassung)
+                )
+                flask_logger.debug("Prediction with CarPricePredictionModelP completed.")
+
+                # Runde die vorhergesagten Preise auf das nächste 10er-Intervall
+                predicted_price_d = round(prediction_d / 10) * 10
+                predicted_price_p = round(prediction_p / 10) * 10
+                flask_logger.debug(f"Rounded predicted_price_d: {predicted_price_d} EUR")
+                flask_logger.debug(f"Rounded predicted_price_p: {predicted_price_p} EUR")
+
+                # Formatierung des Ergebnisses
+                result = (
+                    f"<strong>Vorhersage für Auto:</strong><br>"
+                    f"Marke: {make_display}<br>"
+                    f"Modell: {model_display}<br>"
+                    f"Treibstoff: {fuel_display}<br>"
+                    f"Kilometer: {kilometer} KM<br>"
+                    f"Leistung: {leistung_kw} KW<br>"
+                    f"Erstzulassung: {erstzulassung}<br><br>"
+                    f"<div class='indented'>Händlereinkaufspreis: {predicted_price_d} €</div>"
+                    f"<div class='indented'>Privatverkaufspreis: {predicted_price_p} €</div>"
+                )
                 flask_logger.info(f"Prediction result generated: {result}")
+
             except Exception as e:
                 errors['prediction'] = "Fehler bei der Erstellung der Vorhersage."
-                flask_logger.error(f"Error during prediction: {e}")
+                flask_logger.error(f"Error during prediction: {e}", exc_info=True)
 
     return render_template(
         'prediction.html',
@@ -788,6 +848,17 @@ def import_gebrauchtwagen():
         else:
             flask_logger.error(f"Unexpected error during import: {e}")
         return jsonify({"status": "error", "message": f"Unexpected error: {e}"}), 500
+
+
+@app.route('/update_predicted_prices', methods=['GET'])
+def update_predicted_prices_route():
+    db = get_db()
+    try:
+        Database.update_predicted_prices(db)
+        return jsonify({"status": "success", "message": "Predicted prices updated successfully."}), 200
+    except Exception as e:
+        flask_logger.error(f"Error updating predicted prices: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":

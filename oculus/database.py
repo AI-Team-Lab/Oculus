@@ -2,9 +2,11 @@ import os
 import pymssql
 import logging
 import pandas as pd
+from oculus.price_prediction import CarPricePredictionModelD
 from oculus.logging import database_logger
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+from pathlib import Path
 import json
 
 load_dotenv()
@@ -1271,3 +1273,87 @@ class Database:
             return datetime.fromtimestamp(unix_time, tz=timezone.utc)
         except Exception as e:
             raise ValueError(f"Failed to convert UNIX time {unix_time} to datetime: {e}")
+
+    @staticmethod
+    def update_predicted_prices(db_connection):
+        try:
+            # Log den Start der Aktualisierung
+            database_logger.info("Starting update_predicted_prices.")
+
+            # Bestimme das Basisverzeichnis (vermutlich der Projekt-Root oder oculus/)
+            base_dir = Path(__file__).resolve().parent.parent  # Passe dies an dein Projektlayout an
+
+            # Setze den korrekten model_dir
+            model_dir = base_dir / 'oculus' / 'model_d'  # Stelle sicher, dass dieser Pfad korrekt ist
+
+            # Log den Pfad zum Modell
+            database_logger.debug(f"Loading model from: {model_dir / 'trained_model.keras'}")
+
+            # Initialisiere die Modellklasse mit dem korrekten model_dir
+            car_model = CarPricePredictionModelD(model_dir=model_dir)
+            car_model.load_model_and_scaler()
+
+            # Abrufen der Daten aus der Datenbank
+            query = """
+                       SELECT ww.willhaben_id,
+                              m.make_name as make,
+                              m2.model_name as model,
+                              ww.mileage,
+                              ww.power_in_kw as engine_effect,
+                              f.fuel_type as engine_fuel,
+                              ww.year_model
+                       FROM dwh.willwagen ww
+                                JOIN dwh.make m ON m.id = ww.make_id
+                                JOIN dwh.model m2 ON m2.id = ww.model_id
+                                JOIN dwh.fuel f ON f.id = ww.engine_fuel_id
+                       WHERE ww.source_id = 1
+               """
+            database_logger.debug("Executing query to retrieve car data.")
+            db_connection.execute_query(query)
+            cars = db_connection.cursor.fetchall()
+            database_logger.info(f"Retrieved {len(cars)} cars from 'willwagen' table.")
+
+            # Vorhersage und Aktualisierung der Preise
+            for car in cars:
+                try:
+                    willhaben_id, make, model, mileage, engine_effect, engine_fuel, year_model = car
+                    database_logger.debug(
+                        f"Predicting price for willhaben_id {willhaben_id}: Make={make}, Model={model}, Mileage={mileage}, "
+                        f"Engine_Effect={engine_effect}, Engine_Fuel={engine_fuel}, Year_Model={year_model}")
+
+                    predicted_price = car_model.predict(make, model, mileage, engine_effect, engine_fuel, year_model)
+
+                    # Runde den vorhergesagten Preis auf das nächste 10er-Intervall
+                    predicted_price = round(predicted_price / 10) * 10
+                    database_logger.debug(f"Predicted price for willhaben_id {willhaben_id}: {predicted_price} EUR")
+
+                    # Aktualisiere den vorhergesagten Händlerpreis in der 'willwagen' Tabelle
+                    update_query = """
+                           UPDATE dwh.willwagen
+                           SET predicted_dealer_price = %s
+                           WHERE willhaben_id = %s
+                       """
+                    db_connection.execute_query(update_query, (predicted_price, willhaben_id))
+                    database_logger.debug(f"Updated predicted_dealer_price for willhaben_id {willhaben_id}.")
+
+                except Exception as e:
+                    # Log Fehler bei der Vorhersage oder Aktualisierung einzelner Autos
+                    database_logger.error(f"Failed to predict/update price for willhaben_id {willhaben_id}: {e}",
+                                          exc_info=True)
+                    continue  # Fortfahren trotz Fehler
+
+            # Commit der Transaktion
+            db_connection.conn.commit()
+            database_logger.info("Predicted prices updated successfully.")
+
+        except Exception as e:
+            # Log Fehler während der gesamten Methode
+            database_logger.error(f"Failed to update predicted prices: {e}", exc_info=True)
+            db_connection.conn.rollback()
+            raise pymssql.Error(f"Failed to update predicted prices: {e}")
+
+        except Exception as e:
+            # Log Fehler während der gesamten Methode
+            database_logger.error(f"Failed to update predicted prices: {e}", exc_info=True)
+            db_connection.rollback()
+            raise pymssql.Error(f"Failed to update predicted prices: {e}")

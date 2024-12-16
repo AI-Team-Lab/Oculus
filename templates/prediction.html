@@ -1,17 +1,17 @@
 <!-- templates/prediction.html -->
 {% extends "base.html" %}
 
-{% block title %}Vorhersage - Oculus{% endblock %}
+{% block title %}Fahrzeugpreis Vorhersage - Oculus{% endblock %}
 
 {% block main %}
     <div class="container mt-5">
-        <h2 class="text-center mb-4">Vorhersagen</h2>
+        <h2 class="text-center mb-4">Fahrzeugpreis Vorhersage</h2>
         <div class="row justify-content-center">
-            <div class="col-md-6">
+            <div class="col-md-8">
                 <form method="POST" action="{{ url_for('prediction') }}" id="predictionForm">
                     <!-- Fahrzeugmarke Dropdown -->
                     <div class="mb-3">
-                        <label for="make" class="form-label">Wählen Sie eine Fahrzeugmarke:</label>
+                        <label for="make" class="form-label">Fahrzeugmarke:</label>
                         <select class="form-select" id="make" name="make" required>
                             <option value="" disabled {% if not selected_make %}selected{% endif %}>Bitte wählen...
                             </option>
@@ -27,7 +27,7 @@
 
                     <!-- Fahrzeugmodell Dropdown -->
                     <div class="mb-3">
-                        <label for="model" class="form-label">Wählen Sie ein Fahrzeugmodell:</label>
+                        <label for="model" class="form-label">Fahrzeugmodell:</label>
                         <select class="form-select" id="model" name="model" required
                                 {% if not selected_make %}disabled{% endif %}>
                             <option value="" disabled {% if not selected_model %}selected{% endif %}>Bitte wählen...
@@ -41,7 +41,7 @@
 
                     <!-- Treibstoff-Dropdown -->
                     <div class="mb-3">
-                        <label for="fuel" class="form-label">Wählen Sie einen Treibstofftyp:</label>
+                        <label for="fuel" class="form-label">Treibstofftyp:</label>
                         <select class="form-select" id="fuel" name="fuel" required>
                             <option value="" disabled {% if not selected_fuel %}selected{% endif %}>Bitte wählen...
                             </option>
@@ -59,7 +59,7 @@
                     <div class="mb-3">
                         <label for="kilometer" class="form-label">Kilometerstand (KM):</label>
                         <input type="number" class="form-control" id="kilometer" name="kilometer"
-                               placeholder="z.B. 15000" min="0" step="1" value="{{ kilometer or '' }}" required>
+                               placeholder="z.B. 150000" min="0" step="1" value="{{ kilometer or '' }}" required>
                         {% if errors.kilometer %}
                             <div class="text-danger mt-1">{{ errors.kilometer }}</div>
                         {% endif %}
@@ -78,7 +78,7 @@
 
                     <!-- Erstzulassung Textbox -->
                     <div class="mb-3">
-                        <label for="erstzulassung" class="form-label">Erstzulassung:</label>
+                        <label for="erstzulassung" class="form-label">Erstzulassung (Jahr):</label>
                         <input type="number" class="form-control" id="erstzulassung" name="erstzulassung"
                                placeholder="z.B. 2015" min="1800" max="{{ current_year }}" step="1"
                                value="{{ erstzulassung or '' }}" required>
@@ -96,14 +96,14 @@
                 <!-- Anzeige des Vorhersageergebnisses -->
                 {% if result %}
                     <div class="alert alert-success mt-4" role="alert">
-                        {{ result }}
+                        {{ result | safe }}
                     </div>
                 {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- JavaScript bleibt unverändert -->
+    <!-- JavaScript für dynamisches Laden der Modelle und Formularvalidierung -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const makeSelect = document.getElementById('make');
@@ -157,14 +157,14 @@
             }
         });
 
-        // Formularvalidierung bleibt unverändert
+        // Formularvalidierung für die Erstzulassung
         document.getElementById('predictionForm').addEventListener('submit', function (event) {
             const erstzulassung = document.getElementById('erstzulassung').value;
             const currentYear = {{ current_year }};
             let valid = true;
             let messages = [];
 
-            if (!Number.isInteger(Number(erstzulassung)) || erstzulassung < 1800 || erstzulassung > current_year) {
+            if (!Number.isInteger(Number(erstzulassung)) || erstzulassung < 1800 || erstzulassung > currentYear) {
                 valid = false;
                 messages.push(`Erstzulassungsjahr muss eine ganze Zahl zwischen 1800 und ${current_year} sein.`);
             }
