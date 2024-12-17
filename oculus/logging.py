@@ -1,10 +1,18 @@
 import os
 import logging
+import warnings
 from logging.handlers import TimedRotatingFileHandler
+from sklearn.exceptions import InconsistentVersionWarning
 
 # Ensure the log folder exists
 log_folder = os.path.abspath("logs")
 os.makedirs(log_folder, exist_ok=True)
+
+# Set TensorFlow logging level before importing TensorFlow
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress INFO, WARNING, and ERROR logs
+
+# Suppress scikit-learn InconsistentVersionWarnings
+warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
 
 
 def setup_logger(name, log_file_prefix, level=logging.INFO, add_stream_handler=True):
@@ -53,3 +61,5 @@ willhaben_logger = setup_logger("Willhaben", "willhaben", level=logging.INFO)
 gebrauchtwagen_logger = setup_logger("Gebrauchtwagen", "gebrauchtwagen", level=logging.INFO)
 database_logger = setup_logger("Database", "database", level=logging.INFO)
 celery_logger = setup_logger("Celery", "celery", level=logging.INFO)
+model_logger_d = setup_logger("Model-D", "model", level=logging.INFO)
+model_logger_p = setup_logger("Model-P", "model", level=logging.INFO)

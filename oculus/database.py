@@ -1338,8 +1338,9 @@ class Database:
 
                 except Exception as e:
                     # Log Fehler bei der Vorhersage oder Aktualisierung einzelner Autos
-                    database_logger.error(f"Failed to predict/update price for willhaben_id {willhaben_id}: {e}",
-                                          exc_info=True)
+                    database_logger.error(
+                        f"Failed to predict/update price for willhaben_id {willhaben_id} (Make: {make}, Model: {model}): {e}",
+                        exc_info=False)
                     continue  # Fortfahren trotz Fehler
 
             # Commit der Transaktion
@@ -1348,12 +1349,12 @@ class Database:
 
         except Exception as e:
             # Log Fehler während der gesamten Methode
-            database_logger.error(f"Failed to update predicted prices: {e}", exc_info=True)
+            database_logger.error(f"Failed to update predicted prices: {e}", exc_info=False)
             db_connection.conn.rollback()
             raise pymssql.Error(f"Failed to update predicted prices: {e}")
 
         except Exception as e:
             # Log Fehler während der gesamten Methode
-            database_logger.error(f"Failed to update predicted prices: {e}", exc_info=True)
+            database_logger.error(f"Failed to update predicted prices: {e}", exc_info=False)
             db_connection.rollback()
             raise pymssql.Error(f"Failed to update predicted prices: {e}")
