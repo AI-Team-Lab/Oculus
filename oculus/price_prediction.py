@@ -81,8 +81,8 @@ class CarPricePredictionModelD:
             float: Der vorhergesagte Fahrzeugpreis in EUR.
         """
         try:
-            model_logger_d.debug(f"Received prediction request: Make={make}, Model={model}, Mileage={mileage}, "
-                                 f"Engine_Effect={engine_effect}, Engine_Fuel={engine_fuel}, Year_Model={year_model}")
+            (model_logger_d.info(f"Received prediction request: Make={make}, Model={model}, Mileage={mileage}, "
+                                 f"Engine_Effect={engine_effect}, Engine_Fuel={engine_fuel}, Year_Model={year_model}"))
 
             # Konvertiere make, model und engine_fuel zu Kleinbuchstaben für case-insensitive Encoding
             make = make.lower()
@@ -192,8 +192,8 @@ class CarPricePredictionModelP:
             float: Der vorhergesagte Fahrzeugpreis in EUR.
         """
         try:
-            model_logger_p.debug(f"Received prediction request: Make={make}, Model={model}, Mileage={mileage}, "
-                                 f"Engine_Effect={engine_effect}, Engine_Fuel={engine_fuel}, Year_Model={year_model}")
+            (model_logger_p.info(f"Received prediction request: Make={make}, Model={model}, Mileage={mileage}, "
+                                 f"Engine_Effect={engine_effect}, Engine_Fuel={engine_fuel}, Year_Model={year_model}"))
 
             # Konvertiere make, model und engine_fuel zu Kleinbuchstaben für case-insensitive Encoding
             make = make.lower()
@@ -205,7 +205,7 @@ class CarPricePredictionModelP:
             encoded_model = self.model_encoder.transform([model])[0]
             encoded_fuel = self.fuel_encoder.transform([engine_fuel])[0]
 
-            model_logger_p.debug(
+            model_logger_p.info(
                 f"Encoded Make={encoded_make}, Encoded Model={encoded_model}, Encoded Fuel={encoded_fuel}")
 
             # Skaliere die numerischen Eingabewerte

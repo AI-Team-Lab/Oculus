@@ -338,28 +338,32 @@ def prediction():
         else:
             try:
                 # Mapping der internen Werte zu Anzeigenamen
-                make_display = reverse_make_mapping.get(selected_make.lower(), selected_make.replace('_', ' ').title())
-                model_display = reverse_model_mapping.get(selected_model.lower(),
-                                                          selected_model.replace('_', ' ').title())
-                fuel_display = reverse_fuel_mapping.get(selected_fuel.lower(), selected_fuel.replace('_', ' ').title())
+                make_display = reverse_make_mapping.get(selected_make.lower(), selected_make)
+                model_display = reverse_model_mapping.get(selected_model.lower(), selected_model)
+                fuel_display = reverse_fuel_mapping.get(selected_fuel.lower(), selected_fuel)
+
+                flask_logger.debug(
+                    f"Display make: {make_display}, Display model: {model_display}, Display fuel: {fuel_display}")
+                flask_logger.debug(
+                    f"Selected make: {selected_make}, Selected model: {selected_model}, Selected fuel: {selected_fuel}")
 
                 # Durchführung der Vorhersagen mit beiden Modellen
                 prediction_d = car_model_d.predict(
-                    make=make_display,
-                    model=model_display,
+                    make=selected_make,
+                    model=selected_model,
                     mileage=float(kilometer),
                     engine_effect=float(leistung_kw),
-                    engine_fuel=fuel_display,
+                    engine_fuel=selected_fuel,
                     year_model=int(erstzulassung)
                 )
                 flask_logger.debug("Prediction with CarPricePredictionModelD completed.")
 
                 prediction_p = car_model_p.predict(
-                    make=make_display,
-                    model=model_display,
+                    make=selected_make,
+                    model=selected_model,
                     mileage=float(kilometer),
                     engine_effect=float(leistung_kw),
-                    engine_fuel=fuel_display,
+                    engine_fuel=selected_fuel,
                     year_model=int(erstzulassung)
                 )
                 flask_logger.debug("Prediction with CarPricePredictionModelP completed.")
