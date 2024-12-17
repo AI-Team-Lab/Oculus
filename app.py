@@ -13,8 +13,8 @@ app = Flask(__name__)
 willhaben = Willhaben()
 gebrauchtwagen = Gebrauchtwagen()
 
-# Initialisiere und lade die Modelle beim Start der App
-base_dir = Path(__file__).resolve().parent  # Verzeichnis von app.py
+# Initialize and load the models at app startup
+base_dir = Path(__file__).resolve().parent  # Directory of app.py
 
 car_model_d = CarPricePredictionModelD(model_dir=base_dir / 'oculus' / 'model_d')
 car_model_p = CarPricePredictionModelP(model_dir=base_dir / 'oculus' / 'model_p')
@@ -32,8 +32,13 @@ except Exception as e:
     flask_logger.error(f"Failed to load CarPricePredictionModelP: {e}")
 
 
-# Laden der Mapping-Datei
 def load_mappings():
+    """
+    Loads the mapping file from the specified JSON path.
+
+    Returns:
+        dict: A dictionary containing the mappings. Returns an empty dictionary if loading fails.
+    """
     mapping_path = os.path.join(os.getcwd(), 'oculus', 'mapping', 'willhaben_mapping.json')
     try:
         with open(mapping_path, 'r', encoding='utf-8') as f:
@@ -51,10 +56,10 @@ def load_mappings():
         return {}
 
 
-# Lade die Mappings beim Start der App
+# Load the mappings at app startup
 mappings = load_mappings()
 
-# Erstellen von Reverse-Mappings (internal_value: display_name)
+# Create reverse mappings (internal_value: display_name)
 reverse_make_mapping = {v: k for k, v in mappings.get('willhaben_make_mapping', {}).items()}
 reverse_model_mapping = {v: k for k, v in mappings.get('willhaben_model_mapping', {}).items()}
 reverse_fuel_mapping = {v: k for k, v in mappings.get('willhaben_fuel_type_mapping', {}).items()}
@@ -63,6 +68,12 @@ reverse_fuel_mapping = {v: k for k, v in mappings.get('willhaben_fuel_type_mappi
 def get_db():
     """
     Provides a database connection for the current app context.
+
+    Returns:
+        Database: An instance of the Database class connected to the database.
+
+    Raises:
+        Exception: If there is an error connecting to the database.
     """
     if 'db' not in g:
         g.db = Database()
@@ -79,6 +90,9 @@ def get_db():
 def close_resources(error):
     """
     Cleans up resources at the end of the app context.
+
+    Args:
+        error (Exception): The error that occurred, if any.
     """
     db = g.pop('db', None)
     if db is not None:
@@ -93,6 +107,9 @@ def get_make_options():
     """
     Retrieves vehicle make options from the database and maps them to the corresponding display names.
     Only includes makes that have associated models.
+
+    Returns:
+        list of tuples: A list of tuples where each tuple contains (display_name, internal_value).
     """
     try:
         db = get_db()
@@ -123,7 +140,9 @@ def get_make_options():
 def get_fuel_options():
     """
     Retrieves fuel type options from the mapping file.
-    Returns a list of tuples: (fuel_display, fuel_value)
+
+    Returns:
+        list of tuples: A list of tuples where each tuple contains (fuel_display, fuel_value).
     """
     fuel_mapping = mappings.get('willhaben_fuel_type_mapping', {})
     options = [(fuel, value) for fuel, value in fuel_mapping.items()]
@@ -133,11 +152,24 @@ def get_fuel_options():
 
 @app.route('/')
 def index():
+    """
+    Renders the home page with no car listings.
+
+    Returns:
+        str: Rendered HTML template for the home page.
+    """
     return render_template('index.html', cars=None)
 
 
 @app.route('/search', methods=['GET', 'POST'])
 def search():
+    """
+    Handles the search functionality for cars based on user queries.
+    Supports both GET and POST requests.
+
+    Returns:
+        str: Rendered HTML template with search results or the search form.
+    """
     query = request.form.get('query') if request.method == 'POST' else request.args.get('query')
     page = request.args.get('page', 1, type=int)
     per_page = 30
@@ -146,7 +178,32 @@ def search():
     if query:
         db = get_db()
         try:
-            sql = """
+            # Step 1: Split the search query into individual terms
+            search_terms = query.lower().split()
+
+            if not search_terms:
+                flask_logger.warning("No search terms entered.")
+                return render_template('index.html', cars=None, query=query, page=page)
+
+            # Step 2: Create dynamic WHERE clause with multiple LIKE conditions
+            like_conditions = []
+            params = []
+
+            for term in search_terms:
+                # For each search term, create a LIKE condition for relevant fields
+                condition = "(LOWER(make_name) LIKE %s OR LOWER(model_name) LIKE %s OR LOWER(specification) LIKE %s)"
+                like_conditions.append(condition)
+                like_pattern = f"%{term}%"
+                params.extend([like_pattern, like_pattern, like_pattern])
+
+            # Combine all LIKE conditions with AND to ensure all terms are present
+            where_clause = " AND ".join(like_conditions)
+
+            # **Modify additional conditions to exclude cars with NULL predicted_dealer_price**
+            additional_conditions = " AND predicted_dealer_price IS NOT NULL"
+
+            # Final SQL string
+            sql = f"""
                 SELECT 
                     willhaben_id, 
                     make_name, 
@@ -177,17 +234,19 @@ def search():
                     last_updated, 
                     image_url
                 FROM dwh.willhaben
-                WHERE LOWER(make_name) LIKE %s 
-                   OR LOWER(model_name) LIKE %s
-                   OR LOWER(specification) LIKE %s
+                WHERE {where_clause} {additional_conditions}
                 ORDER BY last_updated DESC
                 OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
             """
-            like_query = f"%{query.lower()}%"
-            db.cursor.execute(sql, (like_query, like_query, like_query, offset, per_page))
+
+            # Step 3: Add parameter binding for pagination
+            params.extend([offset, per_page])
+
+            # Execute the SQL query
+            db.cursor.execute(sql, params)
             rows = db.cursor.fetchall()
 
-            # Annahme: Die Spalten sind in der gleichen Reihenfolge wie im SELECT
+            # Process the results
             cars = []
             for row in rows:
                 (
@@ -221,41 +280,45 @@ def search():
                     image_url
                 ) = row
 
-                # Mapping der Felder
+                # Mapping the fields
                 mapped_make = mappings.get('willhaben_make_mapping', {})
-                reverse_make_mapping = {v.lower(): k for k, v in mapped_make.items()}
-                mapped_make_name = reverse_make_mapping.get(make_internal.lower(), make_internal)
+                reverse_make_mapping_local = {v.lower(): k for k, v in mapped_make.items()}
+                mapped_make_name = reverse_make_mapping_local.get(make_internal.lower(),
+                                                                  make_internal.replace('_', ' ').title())
 
                 mapped_model = mappings.get('willhaben_model_mapping', {})
-                reverse_model_mapping = {v.lower(): k for k, v in mapped_model.items()}
-                mapped_model_name = reverse_model_mapping.get(model_internal.lower(), model_internal)
+                reverse_model_mapping_local = {v.lower(): k for k, v in mapped_model.items()}
+                mapped_model_name = reverse_model_mapping_local.get(model_internal.lower(),
+                                                                    model_internal.replace('_', ' ').title())
 
                 car_type_mapping = mappings.get('willhaben_car_type_mapping', {})
                 reverse_car_type_mapping = {v.lower(): k for k, v in car_type_mapping.items()}
-                mapped_car_type = reverse_car_type_mapping.get(type_.lower(), type_)
+                mapped_car_type = reverse_car_type_mapping.get(type_.lower(), type_.replace('_', ' ').title())
 
                 transmission_type_mapping = mappings.get('willhaben_transmission_type_mapping', {})
                 reverse_transmission_type_mapping = {v.lower(): k for k, v in transmission_type_mapping.items()}
                 mapped_transmission_type = reverse_transmission_type_mapping.get(transmission_type.lower(),
-                                                                                 transmission_type)
+                                                                                 transmission_type.replace('_',
+                                                                                                           ' ').title())
 
                 fuel_type_mapping = mappings.get('willhaben_fuel_type_mapping', {})
                 reverse_fuel_type_mapping = {v.lower(): k for k, v in fuel_type_mapping.items()}
-                mapped_fuel_type = reverse_fuel_type_mapping.get(fuel_type.lower(), fuel_type)
+                mapped_fuel_type = reverse_fuel_type_mapping.get(fuel_type.lower(), fuel_type.replace('_', ' ').title())
 
                 color_mapping = mappings.get('willhaben_color_mapping', {})
                 reverse_color_mapping = {v.lower(): k for k, v in color_mapping.items()}
-                mapped_color = reverse_color_mapping.get(color_name.lower(), color_name)
+                mapped_color = reverse_color_mapping.get(color_name.lower(), color_name.replace('_', ' ').title())
 
                 condition_mapping = mappings.get('willhaben_condition_mapping', {})
                 reverse_condition_mapping = {v.lower(): k for k, v in condition_mapping.items()}
-                mapped_condition = reverse_condition_mapping.get(car_condition.lower(), car_condition)
+                mapped_condition = reverse_condition_mapping.get(car_condition.lower(),
+                                                                 car_condition.replace('_', ' ').title())
 
-                # Formatierung und Standardwerte
+                # Formatting and default values
                 formatted_published = published.strftime('%d.%m.%Y %H:%M') if published else "N/A"
                 formatted_last_updated = last_updated.strftime('%d.%m.%Y %H:%M') if last_updated else "N/A"
 
-                # Konvertiere `predicted_dealer_price` zu Float oder setze auf None
+                # Convert `predicted_dealer_price` to float or set to None
                 try:
                     if predicted_dealer_price is not None:
                         predicted_dealer_price = float(predicted_dealer_price)
@@ -264,7 +327,7 @@ def search():
                 except (ValueError, TypeError):
                     predicted_dealer_price = None
 
-                # Hinzufügen des Fahrzeugs zur Liste
+                # Add the car to the list
                 cars.append({
                     'willhaben_id': willhaben_id,
                     'make_name': mapped_make_name,
@@ -293,13 +356,13 @@ def search():
                     'isprivate': "Yes" if isprivate else "No",
                     'published': formatted_published,
                     'last_updated': formatted_last_updated,
-                    'image_url': image_url or "https://placehold.co/300x200?text=Kein+Bild"
+                    'image_url': image_url or "https://placehold.co/300x200?text=No+Image"
                 })
 
             flask_logger.info(f"Fetched {len(cars)} cars for query '{query}'.")
             return render_template('index.html', cars=cars, query=query, page=page)
         except Exception as e:
-            flask_logger.error(f"Error during search: {e}")
+            flask_logger.error(f"Error during search: {e}", exc_info=True)
             return render_template('index.html', cars=None, query=None, page=None)
 
     return render_template('index.html', cars=None, query=None, page=None)
@@ -307,6 +370,13 @@ def search():
 
 @app.route('/prediction', methods=['GET', 'POST'])
 def prediction():
+    """
+    Handles the car price prediction functionality.
+    Supports both GET and POST requests.
+
+    Returns:
+        str: Rendered HTML template with prediction results or the prediction form.
+    """
     errors = {}
     result = None
     selected_make = None
@@ -316,7 +386,7 @@ def prediction():
     leistung_kw = None
     erstzulassung = None
 
-    current_year = datetime.now().year  # Dynamisches aktuelles Jahr
+    current_year = datetime.now().year  # Dynamic current year
 
     if request.method == 'POST':
         selected_make = request.form.get('make')
@@ -331,13 +401,13 @@ def prediction():
             f"fuel={selected_fuel}, kilometer={kilometer}, leistung_kw={leistung_kw}, erstzulassung={erstzulassung}"
         )
 
-        # Validierung der Eingaben
+        # Validate inputs
         if not all([selected_make, selected_model, selected_fuel, kilometer, leistung_kw, erstzulassung]):
-            errors['prediction'] = "Alle Felder müssen ausgefüllt werden."
+            errors['prediction'] = "All fields must be filled out."
             flask_logger.warning("Prediction request has missing fields.")
         else:
             try:
-                # Mapping der internen Werte zu Anzeigenamen
+                # Map internal values to display names
                 make_display = reverse_make_mapping.get(selected_make.lower(), selected_make)
                 model_display = reverse_model_mapping.get(selected_model.lower(), selected_model)
                 fuel_display = reverse_fuel_mapping.get(selected_fuel.lower(), selected_fuel)
@@ -347,7 +417,7 @@ def prediction():
                 flask_logger.debug(
                     f"Selected make: {selected_make}, Selected model: {selected_model}, Selected fuel: {selected_fuel}")
 
-                # Durchführung der Vorhersagen mit beiden Modellen
+                # Perform predictions with both models
                 prediction_d = car_model_d.predict(
                     make=selected_make,
                     model=selected_model,
@@ -368,13 +438,13 @@ def prediction():
                 )
                 flask_logger.debug("Prediction with CarPricePredictionModelP completed.")
 
-                # Runde die vorhergesagten Preise auf das nächste 10er-Intervall
+                # Round the predicted prices to the nearest 10
                 predicted_price_d = round(prediction_d / 10) * 10
                 predicted_price_p = round(prediction_p / 10) * 10
                 flask_logger.debug(f"Rounded predicted_price_d: {predicted_price_d} EUR")
                 flask_logger.debug(f"Rounded predicted_price_p: {predicted_price_p} EUR")
 
-                # Formatierung des Ergebnisses
+                # Format the result
                 result = (
                     f"<strong>Vorhersage für Auto:</strong><br>"
                     f"Marke: {make_display}<br>"
@@ -389,7 +459,7 @@ def prediction():
                 flask_logger.info(f"Prediction result generated: {result}")
 
             except Exception as e:
-                errors['prediction'] = "Fehler bei der Erstellung der Vorhersage."
+                errors['prediction'] = "Error creating the prediction."
                 flask_logger.error(f"Error during prediction: {e}", exc_info=True)
 
     return render_template(
@@ -406,36 +476,6 @@ def prediction():
         errors=errors,
         current_year=current_year
     )
-
-
-@app.route('/detailed_search', methods=['GET', 'POST'])
-def detailed_search():
-    if request.method == 'POST':
-        # Verarbeiten Sie die detaillierte Suchanfrage
-        # Beispiel: Holen Sie sich Suchparameter aus dem Formular
-        make = request.form.get('make')
-        model = request.form.get('model')
-        year = request.form.get('year')
-        # Führen Sie Ihre Suchlogik durch, z.B. Datenbankabfrage
-        # cars = perform_detailed_search(make, model, year)
-
-        # Placeholder für Suchergebnisse
-        cars = [
-            {
-                'make_display': reverse_make_mapping.get(make, make.replace('_', ' ').title()),
-                'model_display': reverse_model_mapping.get(model, model.replace('_', ' ').title()),
-                'year_model': year,
-                'image_url': 'https://placehold.co/300x200?text=Car+Image',  # Beispielbild
-                # Weitere Fahrzeugdaten
-            },
-            # Weitere Fahrzeuge...
-        ]
-
-        flask_logger.info(f"Detailed search performed: make={make}, model={model}, year={year}")
-        return render_template('detailed_search.html', cars=cars, make=make, model=model, year=year)
-
-    # GET-Anfrage: Zeigen Sie das Suchformular ohne Ergebnisse an
-    return render_template('detailed_search.html', cars=None)
 
 
 @app.route("/fetch_cars", methods=["GET", "POST"])
@@ -607,6 +647,9 @@ def load_json():
     Expected query parameters:
     - entity: The name of the entity (e.g., 'car_data', 'car_engine', 'car_equipment', 'car_location', etc.)
     - file_path (optional): The path to the JSON file (defaults to a file located in 'oculus/data')
+
+    Returns:
+        JSON response with status and message.
     """
     db = None
     entity = None
@@ -688,6 +731,9 @@ def load_json():
 def move_data_to_dwh():
     """
     Triggers a Celery task to move data from staging to the Data Warehouse.
+
+    Returns:
+        JSON response containing the task ID or an error message.
     """
     try:
         delete_from_staging = request.args.get("delete_from_staging", "false").lower() == "true"
@@ -702,21 +748,27 @@ def move_data_to_dwh():
 @app.route('/get_models/<make_internal_value>', methods=['GET'])
 def get_models(make_internal_value):
     """
-    Gibt eine Liste von Fahrzeugmodellen zurück, die zu einer gegebenen Fahrzeugmarke gehören.
-    Die Marke wird über den internen Wert (make_internal_value) identifiziert.
+    Returns a list of vehicle models that belong to a given vehicle make.
+    The make is identified by the internal value (make_internal_value).
+
+    Args:
+        make_internal_value (str): The internal value of the vehicle make.
+
+    Returns:
+        JSON response containing the status and list of models or an error message.
     """
     try:
         db = get_db()
-        # Ermitteln der make_id basierend auf make_internal_value
+        # Determine the make_id based on make_internal_value
         sql = "SELECT id FROM dwh.make WHERE make_name = %s"
         db.cursor.execute(sql, (make_internal_value,))
         result_make = db.cursor.fetchone()
         if not result_make:
             flask_logger.error(f"Make '{make_internal_value}' not found in database.")
-            return jsonify({"status": "error", "message": "Fahrzeugmarke nicht in der Datenbank gefunden."}), 400
+            return jsonify({"status": "error", "message": "Vehicle make not found in the database."}), 400
         make_id = result_make[0]
 
-        # SQL-Abfrage, um Modelle für die gegebene make_id abzurufen
+        # SQL query to retrieve models for the given make_id
         sql = """
             SELECT model_name
             FROM dwh.model
@@ -727,7 +779,7 @@ def get_models(make_internal_value):
         db.cursor.execute(sql, (make_id,))
         models = db.cursor.fetchall()
 
-        # Erstellen der Liste von Modellen mit Mapping-Werten
+        # Create the list of models with mapping values
         model_list = []
         for (model_internal,) in models:
             display_name = reverse_model_mapping.get(model_internal, model_internal.replace('_', ' ').title())
@@ -856,8 +908,14 @@ def import_gebrauchtwagen():
 
 @app.route('/update_predicted_prices', methods=['POST', 'GET'])
 def update_predicted_prices_route():
+    """
+    Initiates a Celery task to update predicted prices for cars.
+
+    Returns:
+        JSON response containing the task ID or an error message.
+    """
     try:
-        # Starte den Celery-Task
+        # Start the Celery task
         task = update_predicted_prices_task.apply_async()
         flask_logger.info(f"update_predicted_prices_task queued with Task ID: {task.id}")
         return jsonify({

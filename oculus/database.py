@@ -1307,6 +1307,7 @@ class Database:
                                 JOIN dwh.model m2 ON m2.id = ww.model_id
                                 JOIN dwh.fuel f ON f.id = ww.engine_fuel_id
                        WHERE ww.source_id = 1
+                       AND ww.year_model IS NOT NULL
                """
             database_logger.debug("Executing query to retrieve car data.")
             db_connection.execute_query(query)
