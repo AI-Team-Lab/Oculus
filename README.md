@@ -182,7 +182,7 @@ Before setting up the **Oculus - Car Prediction** application, ensure you have t
       sudo cp /etc/letsencrypt/live/<your_domain>/privkey.pem /home/ocuadmin/Oculus/config/certs/
       ```
 
-5**Configure Services**  
+5. **Configure Services**  
 Create and enable services:
 
 - **Create `oculus.service` under `/etc/systemd/system/`**:
@@ -268,13 +268,7 @@ Enable and start the services:
    ```
    https://<your_domain>:5000
    ```
-
-8. **Ensure Services Start Automatically**  
-   To ensure the services start on system boot:
-   ```bash
-   sudo systemctl enable redis celery oculus
-   ```
-
+   
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
