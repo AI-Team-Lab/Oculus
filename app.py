@@ -105,8 +105,8 @@ def close_resources(error):
 
 def get_make_options():
     """
-    Retrieves vehicle make options from the database and maps them to the corresponding display names.
-    Only includes makes that have associated models.
+    Retrieves vehicle make options from the database, excluding makes listed in 'excluded_makes',
+    and maps them to their corresponding display names.
 
     Returns:
         list of tuples: A list of tuples where each tuple contains (display_name, internal_value).
@@ -117,11 +117,13 @@ def get_make_options():
             SELECT DISTINCT m1.make_name
             FROM dwh.make m1
             JOIN dwh.model m2 ON m1.id = m2.make_id
-            WHERE m2.model_name <> 'sonstige'
+            LEFT JOIN dwh.excluded_makes e ON m1.make_name = e.make_name
+            WHERE m2.model_name <> 'sonstige' AND e.make_name IS NULL
             ORDER BY m1.make_name
         """
         db.cursor.execute(sql)
         makes = db.cursor.fetchall()
+
         options = []
         for (make_internal,) in makes:
             # Mapping: internal_value -> display_name
@@ -129,7 +131,8 @@ def get_make_options():
             options.append((display_name, make_internal))
             if make_internal not in reverse_make_mapping:
                 flask_logger.warning(
-                    f"No display mapping found for make '{make_internal}', using '{display_name}' as default.")
+                    f"No display mapping found for make '{make_internal}', using '{display_name}' as default."
+                )
         flask_logger.info("Fetched and filtered make options from database.")
         return options
     except Exception as e:
@@ -200,7 +203,7 @@ def search():
             where_clause = " AND ".join(like_conditions)
 
             # **Modify additional conditions to exclude cars with NULL predicted_dealer_price**
-            additional_conditions = " AND predicted_dealer_price IS NOT NULL"
+            additional_conditions = "AND image_url IS NOT NULL AND predicted_dealer_price IS NOT NULL"
 
             # Final SQL string
             sql = f"""
@@ -370,13 +373,6 @@ def search():
 
 @app.route('/prediction', methods=['GET', 'POST'])
 def prediction():
-    """
-    Handles the car price prediction functionality.
-    Supports both GET and POST requests.
-
-    Returns:
-        str: Rendered HTML template with prediction results or the prediction form.
-    """
     errors = {}
     result = None
     selected_make = None
@@ -386,7 +382,7 @@ def prediction():
     leistung_kw = None
     erstzulassung = None
 
-    current_year = datetime.now().year  # Dynamic current year
+    current_year = datetime.now().year
 
     if request.method == 'POST':
         selected_make = request.form.get('make')
@@ -397,11 +393,10 @@ def prediction():
         erstzulassung = request.form.get('erstzulassung')
 
         flask_logger.info(
-            f"Received prediction request: make_internal_value={selected_make}, model_internal_value={selected_model}, "
+            f"Received prediction request: make={selected_make}, model={selected_model}, "
             f"fuel={selected_fuel}, kilometer={kilometer}, leistung_kw={leistung_kw}, erstzulassung={erstzulassung}"
         )
 
-        # Validate inputs
         if not all([selected_make, selected_model, selected_fuel, kilometer, leistung_kw, erstzulassung]):
             errors['prediction'] = "All fields must be filled out."
             flask_logger.warning("Prediction request has missing fields.")
@@ -412,55 +407,70 @@ def prediction():
                 model_display = reverse_model_mapping.get(selected_model.lower(), selected_model)
                 fuel_display = reverse_fuel_mapping.get(selected_fuel.lower(), selected_fuel)
 
-                flask_logger.debug(
-                    f"Display make: {make_display}, Display model: {model_display}, Display fuel: {fuel_display}")
-                flask_logger.debug(
-                    f"Selected make: {selected_make}, Selected model: {selected_model}, Selected fuel: {selected_fuel}")
+                # Prediction results initialization
+                predicted_price_d = None
+                predicted_price_p = None
 
-                # Perform predictions with both models
-                prediction_d = car_model_d.predict(
-                    make=selected_make,
-                    model=selected_model,
-                    mileage=float(kilometer),
-                    engine_effect=float(leistung_kw),
-                    engine_fuel=selected_fuel,
-                    year_model=int(erstzulassung)
-                )
-                flask_logger.debug("Prediction with CarPricePredictionModelD completed.")
+                # Predict with Händlerpreis model (Model D)
+                try:
+                    prediction_d = car_model_d.predict(
+                        make=selected_make,
+                        model=selected_model,
+                        mileage=float(kilometer),
+                        engine_effect=float(leistung_kw),
+                        engine_fuel=selected_fuel,
+                        year_model=int(erstzulassung)
+                    )
+                    predicted_price_d = round(prediction_d / 10) * 10
+                    flask_logger.info(f"Predicted dealer price: {predicted_price_d} €")
+                except Exception as e:
+                    flask_logger.warning(f"Händlerpreis prediction failed: {e}")
 
-                prediction_p = car_model_p.predict(
-                    make=selected_make,
-                    model=selected_model,
-                    mileage=float(kilometer),
-                    engine_effect=float(leistung_kw),
-                    engine_fuel=selected_fuel,
-                    year_model=int(erstzulassung)
-                )
-                flask_logger.debug("Prediction with CarPricePredictionModelP completed.")
+                # Predict with Privatpreis model (Model P)
+                try:
+                    prediction_p = car_model_p.predict(
+                        make=selected_make,
+                        model=selected_model,
+                        mileage=float(kilometer),
+                        engine_effect=float(leistung_kw),
+                        engine_fuel=selected_fuel,
+                        year_model=int(erstzulassung)
+                    )
+                    predicted_price_p = round(prediction_p / 10) * 10
+                    flask_logger.info(f"Predicted private price: {predicted_price_p} €")
+                except Exception as e:
+                    flask_logger.warning(f"Privatpreis prediction failed: {e}")
 
-                # Round the predicted prices to the nearest 10
-                predicted_price_d = round(prediction_d / 10) * 10
-                predicted_price_p = round(prediction_p / 10) * 10
-                flask_logger.debug(f"Rounded predicted_price_d: {predicted_price_d} EUR")
-                flask_logger.debug(f"Rounded predicted_price_p: {predicted_price_p} EUR")
+                # Format the result dynamically
+                result_parts = [
+                    f"<strong>Vorhersage für Auto:</strong>",
+                    f"Marke: {make_display}",
+                    f"Modell: {model_display}",
+                    f"Treibstoff: {fuel_display}",
+                    f"Kilometer: {kilometer} KM",
+                    f"Leistung: {leistung_kw} KW",
+                    f"Erstzulassung: {erstzulassung}"
+                ]
 
-                # Format the result
-                result = (
-                    f"<strong>Vorhersage für Auto:</strong><br>"
-                    f"Marke: {make_display}<br>"
-                    f"Modell: {model_display}<br>"
-                    f"Treibstoff: {fuel_display}<br>"
-                    f"Kilometer: {kilometer} KM<br>"
-                    f"Leistung: {leistung_kw} KW<br>"
-                    f"Erstzulassung: {erstzulassung}<br><br>"
-                    f"<div class='indented'>Händlereinkaufspreis: {predicted_price_d} €</div>"
-                    f"<div class='indented'>Privatverkaufspreis: {predicted_price_p} €</div>"
-                )
-                flask_logger.info(f"Prediction result generated: {result}")
+                # Leerzeile nur einmal einfügen, falls es Preise gibt
+                if predicted_price_d is not None or predicted_price_p is not None:
+                    result_parts.append("")  # Leerzeile für Abstand
+
+                # Preise dynamisch hinzufügen, ohne Leerzeilen zwischen den Preisen
+                if predicted_price_d is not None:
+                    result_parts.append(f"Händlereinkaufspreis: {predicted_price_d} €")
+                if predicted_price_p is not None:
+                    result_parts.append(f"Privatverkaufspreis: {predicted_price_p} €")
+
+                if predicted_price_d is None and predicted_price_p is None:
+                    errors['prediction'] = "Keine Vorhersagen verfügbar. Bitte prüfen Sie Ihre Eingaben."
+                else:
+                    # Füge die Zeilen zusammen und erzeuge das HTML-Ergebnis
+                    result = "<br>".join(result_parts)
 
             except Exception as e:
-                errors['prediction'] = "Error creating the prediction."
-                flask_logger.error(f"Error during prediction: {e}", exc_info=True)
+                errors['prediction'] = "Fehler bei der Erstellung der Vorhersage."
+                flask_logger.error(f"Prediction error: {e}", exc_info=True)
 
     return render_template(
         'prediction.html',
@@ -748,8 +758,7 @@ def move_data_to_dwh():
 @app.route('/get_models/<make_internal_value>', methods=['GET'])
 def get_models(make_internal_value):
     """
-    Returns a list of vehicle models that belong to a given vehicle make.
-    The make is identified by the internal value (make_internal_value).
+    Returns a list of vehicle models for a given make, excluding models in the 'excluded_models' table.
 
     Args:
         make_internal_value (str): The internal value of the vehicle make.
@@ -759,39 +768,37 @@ def get_models(make_internal_value):
     """
     try:
         db = get_db()
-        # Determine the make_id based on make_internal_value
+        # Get make_id based on make_internal_value
         sql = "SELECT id FROM dwh.make WHERE make_name = %s"
         db.cursor.execute(sql, (make_internal_value,))
         result_make = db.cursor.fetchone()
         if not result_make:
             flask_logger.error(f"Make '{make_internal_value}' not found in database.")
-            return jsonify({"status": "error", "message": "Vehicle make not found in the database."}), 400
+            return jsonify({"status": "error", "message": "Vehicle make not found."}), 400
         make_id = result_make[0]
 
-        # SQL query to retrieve models for the given make_id
+        # Query to fetch models excluding those in 'excluded_models'
         sql = """
-            SELECT model_name
-            FROM dwh.model
-            WHERE make_id = %s
-            AND model_name <> 'sonstige'
-            ORDER BY model_name
+            SELECT m.model_name
+            FROM dwh.model m
+            LEFT JOIN dwh.excluded_models e ON m.model_name = e.model_name
+            WHERE m.make_id = %s AND e.model_name IS NULL
+            ORDER BY m.model_name
         """
         db.cursor.execute(sql, (make_id,))
         models = db.cursor.fetchall()
 
-        # Create the list of models with mapping values
-        model_list = []
-        for (model_internal,) in models:
-            display_name = reverse_model_mapping.get(model_internal, model_internal.replace('_', ' ').title())
-            model_list.append({"display_name": display_name, "value": model_internal})
-            if model_internal not in reverse_model_mapping:
-                flask_logger.warning(
-                    f"No display mapping found for model '{model_internal}', using '{display_name}' as default.")
+        # Map results
+        model_list = [
+            {"display_name": reverse_model_mapping.get(model, model.replace('_', ' ').title()), "value": model}
+            for (model,) in models
+        ]
 
-        flask_logger.info(f"Fetched {len(model_list)} models for make_internal_value='{make_internal_value}'.")
+        flask_logger.info(
+            f"Fetched {len(model_list)} models for make '{make_internal_value}', excluding listed models.")
         return jsonify({"status": "success", "models": model_list})
     except Exception as e:
-        flask_logger.error(f"Error fetching models for make_internal_value '{make_internal_value}': {e}")
+        flask_logger.error(f"Error fetching models: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

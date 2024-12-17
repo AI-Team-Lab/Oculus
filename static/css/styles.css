@@ -6,7 +6,20 @@
 /* Fokus-Stil für Eingabefelder mit gelbem Rand und Schatten */
 .form-control:focus {
     border-color: #eabc4c;
-    box-shadow: 0 0 0 0.25rem rgb(50, 50, 50);
+    box-shadow: 0 0 0 0.25rem rgba(234, 188, 76, 0.5); /* Gelber Schatten */
+    outline: none; /* Entferne Standard-Outline */
+}
+
+/* Dropdown-Menü Standard-Rahmen */
+.form-select {
+    border-color: #eabc4c;
+}
+
+/* Fokus-Stil für Dropdown-Menü */
+.form-select:focus {
+    border-color: #eabc4c;
+    box-shadow: 0 0 0 0.25rem rgba(234, 188, 76, 0.5); /* Gelber Schatten */
+    outline: none; /* Entferne Standard-Outline */
 }
 
 /* Anpassung des primären Buttons: Hintergrund, Rand und Textfarbe */
