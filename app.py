@@ -166,13 +166,6 @@ def index():
 
 @app.route('/search', methods=['GET', 'POST'])
 def search():
-    """
-    Handles the search functionality for cars based on user queries.
-    Supports both GET and POST requests.
-
-    Returns:
-        str: Rendered HTML template with search results or the search form.
-    """
     query = request.form.get('query') if request.method == 'POST' else request.args.get('query')
     page = request.args.get('page', 1, type=int)
     per_page = 30
@@ -181,31 +174,29 @@ def search():
     if query:
         db = get_db()
         try:
-            # Step 1: Split the search query into individual terms
+            # Schritt 1: Suchbegriffe aufteilen
             search_terms = query.lower().split()
 
             if not search_terms:
-                flask_logger.warning("No search terms entered.")
+                flask_logger.warning("Keine Suchbegriffe eingegeben.")
                 return render_template('index.html', cars=None, query=query, page=page)
 
-            # Step 2: Create dynamic WHERE clause with multiple LIKE conditions
+            # Schritt 2: Dynamische WHERE-Klausel erstellen
             like_conditions = []
             params = []
 
             for term in search_terms:
-                # For each search term, create a LIKE condition for relevant fields
                 condition = "(LOWER(make_name) LIKE %s OR LOWER(model_name) LIKE %s OR LOWER(specification) LIKE %s)"
                 like_conditions.append(condition)
                 like_pattern = f"%{term}%"
                 params.extend([like_pattern, like_pattern, like_pattern])
 
-            # Combine all LIKE conditions with AND to ensure all terms are present
             where_clause = " AND ".join(like_conditions)
 
-            # **Modify additional conditions to exclude cars with NULL predicted_dealer_price**
+            # Zusätzliche Bedingungen
             additional_conditions = "AND image_url IS NOT NULL AND predicted_dealer_price IS NOT NULL"
 
-            # Final SQL string
+            # Finales SQL ohne seo_url_path
             sql = f"""
                 SELECT 
                     willhaben_id, 
@@ -234,7 +225,8 @@ def search():
                     warranty, 
                     isprivate, 
                     published, 
-                    last_updated, 
+                    last_updated,
+                    seo_url,
                     image_url
                 FROM dwh.willhaben
                 WHERE {where_clause} {additional_conditions}
@@ -242,14 +234,14 @@ def search():
                 OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
             """
 
-            # Step 3: Add parameter binding for pagination
+            # Parameter für Pagination hinzufügen
             params.extend([offset, per_page])
 
-            # Execute the SQL query
+            # SQL ausführen
             db.cursor.execute(sql, params)
             rows = db.cursor.fetchall()
 
-            # Process the results
+            # Ergebnisse verarbeiten
             cars = []
             for row in rows:
                 (
@@ -280,10 +272,11 @@ def search():
                     isprivate,
                     published,
                     last_updated,
+                    seo_url,
                     image_url
                 ) = row
 
-                # Mapping the fields
+                # Mapping der Felder
                 mapped_make = mappings.get('willhaben_make_mapping', {})
                 reverse_make_mapping_local = {v.lower(): k for k, v in mapped_make.items()}
                 mapped_make_name = reverse_make_mapping_local.get(make_internal.lower(),
@@ -317,11 +310,11 @@ def search():
                 mapped_condition = reverse_condition_mapping.get(car_condition.lower(),
                                                                  car_condition.replace('_', ' ').title())
 
-                # Formatting and default values
+                # Formatierung und Standardwerte
                 formatted_published = published.strftime('%d.%m.%Y %H:%M') if published else "N/A"
                 formatted_last_updated = last_updated.strftime('%d.%m.%Y %H:%M') if last_updated else "N/A"
 
-                # Convert `predicted_dealer_price` to float or set to None
+                # Konvertierung von predicted_dealer_price zu float oder None
                 try:
                     if predicted_dealer_price is not None:
                         predicted_dealer_price = float(predicted_dealer_price)
@@ -330,7 +323,7 @@ def search():
                 except (ValueError, TypeError):
                     predicted_dealer_price = None
 
-                # Add the car to the list
+                # Auto zur Liste hinzufügen
                 cars.append({
                     'willhaben_id': willhaben_id,
                     'make_name': mapped_make_name,
@@ -359,6 +352,7 @@ def search():
                     'isprivate': "Yes" if isprivate else "No",
                     'published': formatted_published,
                     'last_updated': formatted_last_updated,
+                    'seo_url': seo_url,
                     'image_url': image_url or "https://placehold.co/300x200?text=No+Image"
                 })
 
@@ -366,7 +360,7 @@ def search():
             return render_template('index.html', cars=cars, query=query, page=page)
         except Exception as e:
             flask_logger.error(f"Error during search: {e}", exc_info=True)
-            return render_template('index.html', cars=None, query=None, page=None)
+            return render_template('index.html', cars=None, query=query, page=page, error=str(e))
 
     return render_template('index.html', cars=None, query=None, page=None)
 

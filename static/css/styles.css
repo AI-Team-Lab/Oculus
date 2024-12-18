@@ -162,3 +162,15 @@
     border-color: #eabc4c;
     color: #000000;
 }
+
+/* Stil für die Willhaben ID Links */
+.car-link {
+    color: #000000; /* Textfarbe weiß */
+    text-decoration: none; /* Kein Unterstrich */
+    transition: color 0.3s ease; /* Weicher Übergang für Farbe */
+}
+
+.car-link:hover {
+    color: #eabc4c; /* Gelbe Farbe bei Hover */
+    text-decoration: none; /* Kein Unterstrich */
+}

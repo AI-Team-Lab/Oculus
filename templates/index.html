@@ -18,7 +18,7 @@
         <div class="row row-cols-1 row-cols-md-3 g-4">
             {% for car in cars %}
                 <div class="col">
-                    <div class="card car-card h-100"> <!-- Hinzugefügte 'car-card' Klasse -->
+                    <div class="card car-card h-100">
                         <!-- Bild im Kartenkopf mit der Klasse .card-img-top -->
                         <img src="{{ car.image_url }}"
                              class="card-img-top"
@@ -28,7 +28,11 @@
                             <!-- Titel größer und fett -->
                             <h4 class="card-title fw-bold">{{ car.make_name }} {{ car.model_name }}</h4>
                             <p class="card-text">
-                                <strong>Willhaben ID:</strong> {{ car.willhaben_id }}<br>
+                                <strong>Willhaben ID:</strong>
+                                <a href="https://www.willhaben.at/iad/{{ car.seo_url }}" target="_blank"
+                                   rel="noopener noreferrer" class="car-link">
+                                    {{ car.willhaben_id }}
+                                </a><br>
                                 <strong>Spezifikation:</strong> {{ car.specification or "N/A" }}<br>
                                 <!-- <strong>Beschreibung:</strong> {{ car.description or "N/A" }}<br> -->
                                 <strong>Baujahr:</strong> {{ car.year_model or "N/A" }}<br>
@@ -124,5 +128,11 @@
         </nav>
     {% elif query and not cars %}
         <p>Keine Ergebnisse gefunden.</p>
+    {% endif %}
+
+    {% if error %}
+        <div class="alert alert-danger" role="alert">
+            {{ error }}
+        </div>
     {% endif %}
 {% endblock %}
