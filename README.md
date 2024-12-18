@@ -4,8 +4,8 @@
 
 ## Project Overview
 
-**Oculus - Car Prediction** is a Flask-based web application that interfaces with the **Willhaben** and **Gebrauchtwagen
-** APIs. It enables users to search for used cars on Willhaben, retrieve comprehensive information about each vehicle,
+**Oculus - Car Prediction** is a Flask-based web application that interfaces with the **Willhaben** and **Gebrauchtwagen**
+APIs. It enables users to search for used cars on Willhaben, retrieve comprehensive information about each vehicle,
 and display predicted selling prices using a machine learning model trained with data from **Gebrauchtwagen.at**.
 Additionally, the application offers price prediction capabilities for buyers, allowing them to determine the optimal
 purchase price for a desired vehicle. Hosted on a Microsoft Azure Ubuntu server with a robust Microsoft SQL database,
