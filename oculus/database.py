@@ -1353,9 +1353,3 @@ class Database:
             database_logger.error(f"Failed to update predicted prices: {e}", exc_info=False)
             db_connection.conn.rollback()
             raise pymssql.Error(f"Failed to update predicted prices: {e}")
-
-        except Exception as e:
-            # Log Fehler während der gesamten Methode
-            database_logger.error(f"Failed to update predicted prices: {e}", exc_info=False)
-            db_connection.rollback()
-            raise pymssql.Error(f"Failed to update predicted prices: {e}")
